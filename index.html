@@ -812,15 +812,15 @@ function renderL(){
 }
 
 function abrirCorreo(threadId){
-  if(!threadId){toast('Sin ID de correo para este hilo');return;}
-  // Limpiar threadId: quitar comillas, espacios, caracteres extraños
-  const id = String(threadId).replace(/^['\s]+|['\s]+$/g,'').trim();
-  if(!id||id==='undefined'){toast('ID de correo inválido');return;}
-  const idx = localStorage.getItem('gmail_account_index') || '1';
-  // Usar #thread/ que es más directo que #all/
-  const url = `https://mail.google.com/mail/u/${idx}/#all/${id}`;
-  console.log('Abriendo correo:', url, '| threadId:', id);
-  window.open(url, '_blank');
+  if(!threadId||threadId==='undefined'||threadId===undefined){
+    toast('Esta tarea no tiene correo vinculado — sincroniza Gmail primero');return;
+  }
+  const id=String(threadId).replace(/^['\s]+|['\s]+$/g,'').trim();
+  if(!id||id.length<10){
+    toast('ID de correo inválido — sincroniza Gmail para actualizar');return;
+  }
+  const idx=localStorage.getItem('gmail_account_index')||'1';
+  window.open(`https://mail.google.com/mail/u/${idx}/#all/${id}`,'_blank');
 }
 
 function done(id){
