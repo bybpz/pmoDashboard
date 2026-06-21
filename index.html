@@ -1110,7 +1110,6 @@ async function doSync(){
   btn.disabled=true;btn.querySelector('span').textContent='Sincronizando...';
 
   if(!APPS_SCRIPT_URL){
-    // Pedir la URL si no está configurada
     const url = prompt('Pega aquí la URL de tu Apps Script publicado:\n(Apps Script → Implementar → Administrar implementaciones → URL)');
     if(!url){ btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
     APPS_SCRIPT_URL = url.trim();
@@ -1118,6 +1117,20 @@ async function doSync(){
   }
 
   try{
+    // 1. Primero enviar estados completados pendientes a la Sheet
+    const saved = JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
+    const completados = Object.entries(saved).filter(([,v])=>v==='completado').map(([k])=>k);
+    if(completados.length){
+      btn.querySelector('span').textContent='Actualizando estados...';
+      for(const tid of completados){
+        try{
+          await fetch(`${APPS_SCRIPT_URL}?action=completar&threadId=${encodeURIComponent(tid)}&token=gbios2026pm`);
+        }catch(e){}
+      }
+    }
+
+    // 2. Luego traer tareas actualizadas
+    btn.querySelector('span').textContent='Sincronizando...';
     const res  = await fetch(APPS_SCRIPT_URL);
     const json = await res.json();
 
@@ -1135,11 +1148,10 @@ async function doSync(){
       s:        t.snippet||'',
       ha:       t.enviados>0,
       sent:     t.enviados||0,
-      threadId: t.threadId  // Viene limpio como texto desde el script
+      threadId: t.threadId
     }));
 
     // Preservar estado completado del localStorage
-    const saved = JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
     sheetTasks.forEach(t=>{
       if(saved[t.threadId]==='completado') t.dn=true;
     });
@@ -1157,7 +1169,6 @@ async function doSync(){
 
   }catch(e){
     toast('Error de conexión: '+e.message);
-    // Si falla, limpiar URL para que pida de nuevo
     localStorage.removeItem('apps_script_url');
     APPS_SCRIPT_URL='';
     console.error(e);
