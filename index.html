@@ -812,7 +812,7 @@ function renderL(){
 }
 
 function abrirCorreo(threadId){
-  if(!threadId||threadId==='undefined'||threadId===undefined){
+  if(!threadId||threadId==='undefined'||threadId===undefined||String(threadId).trim()===''){
     toast('Esta tarea no tiene correo vinculado — sincroniza Gmail primero');return;
   }
   const id=String(threadId).replace(/^['\s]+|['\s]+$/g,'').trim();
@@ -820,7 +820,9 @@ function abrirCorreo(threadId){
     toast('ID de correo inválido — sincroniza Gmail para actualizar');return;
   }
   const idx=localStorage.getItem('gmail_account_index')||'1';
-  window.open(`https://mail.google.com/mail/u/${idx}/#all/${id}`,'_blank');
+  const url=`https://mail.google.com/mail/u/${idx}/#all/${id}`;
+  window.open(url,'_blank');
+  toast(`Abriendo en cuenta u/${idx} — si no es la correcta, cambia el índice en Ajustes`);
 }
 
 function done(id){
