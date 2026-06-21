@@ -1,511 +1,1318 @@
-// ============================================================
-// PM DASHBOARD — Google Apps Script v3
-// Cuenta: bryan.pozo@grupobios.cl
-// ============================================================
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PM Dashboard — Grupo Bios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root{
+  /* Estilo Bold — Crema · Naranja · Negro */
+  --bg:#F5F0E8;--surface:#FFFFFF;--surface2:#EDE8DF;--border:#DDD8CE;--border2:#CCC7BC;
+  --text:#1A1A1A;--t2:#555550;--t3:#999993;
+  --blue:#FF4D00;--blue-bg:#FFF0EB;--blue-d:#E03D00;
+  --red:#FF4D00;--red-bg:#FFF0EB;
+  --amber:#1A1A1A;--amber-bg:#E8E0D0;
+  --green:#1A1A1A;--green-bg:#E8E0D0;
+  --r:6px;--rlg:10px;--sw:220px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.app{display:flex;flex:1;overflow:hidden}
 
-const CONFIG = {
-  SPREADSHEET_ID: '1jUaUS2R2FF0YeSAdCSHMAlsG9cpapgpDuKA3Ju4oR8o',
-  PM_EMAIL:       'bryan.pozo@grupobios.cl',
-  PM_NOMBRE:      'Bryan Pozo',
-  PM_CARGO:       'Project Manager — Grupo Bios',
-  SECRET_TOKEN:   'gbios2026pm',  // Token para autenticar peticiones del dashboard
+/* SIDEBAR */
+.sb{width:var(--sw);background:#1A1A1A;border-right:none;display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto}
+.logo{display:flex;align-items:center;gap:10px;padding:1.25rem 1.25rem 1rem;border-bottom:1px solid var(--border)}
+.logo-mk{width:32px;height:32px;background:var(--blue);border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-mk svg{width:16px;height:16px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.logo-name{font-size:13px;font-weight:600;color:#FFFFFF}
+.logo-org{font-size:11px;color:#888880}
+.nav-g{padding:.75rem .75rem .25rem;font-size:10px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em}
+.nav{display:flex;align-items:center;gap:9px;padding:7px 12px;margin:1px 6px;border-radius:var(--r);cursor:pointer;font-size:13px;color:#888880;border:none;background:none;width:calc(100% - 12px);text-align:left;transition:all .12s;font-family:inherit}
+.nav:hover{background:#2A2A2A;color:#FFFFFF}
+.nav.on{background:#FF4D00;color:#fff;font-weight:500}
+.nav svg{width:16px;height:16px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.np{margin-left:auto;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;background:#FF4D00;color:#fff}
+.np.am{background:#D97706}
+.sb-bot{margin-top:auto;padding:.75rem}
+.sync-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:7px;padding:9px;border-radius:var(--r);background:#FF4D00;color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:500;font-family:inherit;transition:background .15s}
+.sync-btn:hover{background:#E03D00}
+.sync-btn:disabled{opacity:.6;cursor:not-allowed}
+.conn{display:flex;align-items:center;justify-content:center;gap:5px;font-size:11px;color:#666660;padding:.5rem .75rem 0}
+.cdot-conn{width:6px;height:6px;border-radius:50%;background:#22c55e}
 
-  // Nombres EXACTOS de las etiquetas como aparecen en Gmail
-  // (con la barra /, no guión)
-  LABELS: [
-    { nombre: 'ESTADO/URGENTE',     tipo: 'urgente'     },
-    { nombre: 'ESTADO/SEGUIMIENTO', tipo: 'seguimiento' },
-    { nombre: 'ESTADO/DELEGADO',    tipo: 'delegado'    }
-  ],
+/* MAIN */
+.main{flex:1;overflow-y:auto;background:var(--bg)}
+.page{display:none;padding:1.75rem 2rem;min-height:100%}
+.page.on{display:block}
 
-  ASUNTO_RECORDATORIO: 'Recordatorio: tarea pendiente vence mañana — {tarea}',
-  CUERPO_RECORDATORIO:
-`Estimado/a {delegado},
+/* HEADER */
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.5rem;gap:12px;flex-wrap:wrap}
+.pt{font-size:20px;font-weight:600;color:var(--text)}
+.ps{font-size:12px;color:var(--t3);margin-top:3px}
+.ha{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
-Le escribo para recordarle que la tarea "{tarea}", correspondiente al proyecto {cliente}, tiene fecha de vencimiento mañana {fecha}.
+/* ALERTS */
+.astrip{display:flex;align-items:center;gap:8px;padding:.7rem 1rem;border-radius:var(--r);font-size:13px;margin-bottom:1.25rem}
+.astrip svg{width:15px;height:15px;flex-shrink:0;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.sw{background:var(--amber-bg);color:var(--amber);border:1px solid #FDE68A}
+.so{background:var(--green-bg);color:var(--green);border:1px solid #BBF7D0}
+.sb2{background:var(--blue-bg);color:var(--blue);border:1px solid #BFDBFE}
+
+/* METRICS */
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:1.5rem}
+.metric{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--rlg);padding:1rem 1.25rem;cursor:pointer;transition:border-color .15s}
+.metric:hover{border-color:var(--border2)}
+.metric.sel{border-color:var(--blue)}
+.metric .ml{font-size:11px;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:500}
+.metric .mv{font-size:28px;font-weight:600;line-height:1}
+.metric .bar{height:3px;border-radius:2px;margin-top:10px;background:var(--border);overflow:hidden}
+.metric .bf{height:100%;border-radius:2px;transition:width .7s cubic-bezier(.4,0,.2,1)}
+
+/* VIEWS */
+.vrow{display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px}
+.vtog{display:flex;gap:4px}
+.vbtn{font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid var(--border);cursor:pointer;background:var(--surface);color:var(--t2);font-family:inherit;transition:all .12s;display:flex;align-items:center;gap:5px}
+.vbtn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.vbtn:hover{border-color:var(--border2);color:var(--text)}
+.vbtn.on{background:var(--blue);border-color:var(--blue);color:#fff}
+
+/* BUTTONS */
+.btn{font-size:13px;padding:7px 14px;border-radius:var(--r);border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-family:inherit;transition:all .12s;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.btn:hover{background:var(--bg);border-color:var(--border2)}
+.btn-b{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-b:hover{background:var(--blue-d);border-color:var(--blue-d)}
+.btn-r{background:var(--red-bg);color:var(--red);border-color:#FECACA}
+.btn-r:hover{background:#FEE2E2}
+input,select,textarea{font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--text);font-family:inherit;outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+textarea{resize:vertical;min-height:90px;line-height:1.6}
+input[type=checkbox]{accent-color:var(--blue);width:15px;height:15px;cursor:pointer}
+
+/* KANBAN */
+.kanban{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.kol{background:#EDE8DF;border:1px solid var(--border);border-radius:var(--rlg);padding:.875rem;min-height:180px}
+.kol-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem}
+.kol-t{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.kol-n{font-size:11px;background:var(--bg);border:1px solid var(--border);color:var(--t2);padding:2px 8px;border-radius:20px}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:.875rem;margin-bottom:8px;transition:border-color .12s}
+.kcard:hover{border-color:var(--border2)}
+.kcard-t{font-size:13px;font-weight:500;color:var(--text);margin-bottom:5px;line-height:1.4}
+.kcard-c{font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;margin-bottom:4px}
+.kcard-s{font-size:11px;color:var(--t3);line-height:1.5;margin-bottom:8px;font-style:italic}
+.kcard-f{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}
+.cdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.done-btn{font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--t2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;transition:all .1s}
+.done-btn svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2.5}
+.done-btn:hover{background:var(--green-bg);border-color:#86EFAC;color:var(--green)}
+
+/* BADGES */
+.badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;white-space:nowrap}
+.bu{background:#FF4D00;color:#fff}
+.bd{background:#1A1A1A;color:#fff}
+.bs{background:#E8E0D0;color:#1A1A1A}
+.due-r{background:var(--red-bg);color:var(--red);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;white-space:nowrap}
+.due-a{background:var(--amber-bg);color:var(--amber);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;white-space:nowrap}
+.due-g{background:var(--green-bg);color:var(--green);font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500;white-space:nowrap}
+.bell-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:20px}
+.bell-tag svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* TABLE */
+.tw{background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);overflow:hidden}
+.tw table{width:100%;border-collapse:collapse;table-layout:fixed}
+.tw th{font-size:11px;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.05em;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg);text-align:left}
+.tw td{padding:11px 14px;border-bottom:1px solid var(--border);vertical-align:middle;font-size:13px}
+.tw tr:last-child td{border-bottom:none}
+.tw tr:hover td{background:#F5F0E8}
+.tn{font-weight:500;margin-bottom:2px}
+.ts{font-size:11px;color:var(--t3)}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);padding:1.25rem;margin-bottom:.875rem}
+.ct{font-size:14px;font-weight:600;color:var(--text);margin-bottom:.25rem}
+.cst{font-size:12px;color:var(--t2);margin-bottom:1rem}
+.field{margin-bottom:.875rem}
+.field label{font-size:12px;color:var(--t2);display:block;margin-bottom:5px;font-weight:500}
+.field input,.field select,.field textarea{width:100%}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ALARMS */
+.arow{display:flex;align-items:center;gap:12px;padding:.875rem 1rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);margin-bottom:8px;transition:border-color .12s}
+.arow:hover{border-color:var(--border2)}
+.aicon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.aicon svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.abody{flex:1;min-width:0}
+.atitle{font-size:13px;font-weight:500;color:var(--text);margin-bottom:3px}
+.ameta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--t3);align-items:center}
+.ameta svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2;vertical-align:middle}
+.aact{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.sent-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;background:var(--blue-bg);color:var(--blue);padding:2px 8px;border-radius:20px}
+.sent-tag svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* TOGGLE */
+.tsw{position:relative;width:36px;height:20px;flex-shrink:0}
+.tsw input{opacity:0;width:0;height:0;position:absolute}
+.trk{position:absolute;inset:0;background:#D1D5DB;border-radius:20px;cursor:pointer;transition:background .2s}
+.trk:before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--surface);border-radius:50%;transition:transform .2s}
+.tsw input:checked+.trk{background:var(--blue)}
+.tsw input:checked+.trk:before{transform:translateX(16px)}
+
+/* CHARTS */
+.cgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.25rem}
+.ccard{background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);padding:1.25rem}
+.ctitle{font-size:13px;font-weight:600;color:var(--text);margin-bottom:.75rem}
+.cleg{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:.625rem}
+.li{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)}
+.lsq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+/* SETTINGS */
+.srow{display:flex;align-items:center;justify-content:space-between;padding:.875rem 0;border-bottom:1px solid var(--border);font-size:13px}
+.srow:last-child{border-bottom:none}
+.sl{font-weight:500;color:var(--text)}
+.ss{font-size:11px;color:var(--t3);margin-top:2px}
+.prev{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:1rem;font-size:12px;line-height:1.8;white-space:pre-wrap;color:var(--text);margin-top:.75rem;font-family:inherit}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;align-items:center;justify-content:center}
+.modal-box{background:var(--surface);border-radius:var(--rlg);padding:1.5rem;width:500px;max-width:95vw;border:1px solid var(--border)}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:1.25rem;color:var(--text)}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:.75rem}
+
+/* TOAST */
+#toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#1A1A1A;color:#fff;padding:.75rem 1.25rem;border-radius:var(--rlg);font-size:13px;opacity:0;transform:translateY(6px);transition:all .25s;pointer-events:none;z-index:999;max-width:300px}
+#toast.show{opacity:1;transform:translateY(0)}
+
+.empty{text-align:center;padding:2.5rem 1rem;color:var(--t3);font-size:13px}
+
+@media(max-width:860px){
+  .sb{width:58px}
+  .logo-name,.logo-org,.nav-g,.nav span:not(.np),.np,.conn,.sync-btn span{display:none}
+  .nav{justify-content:center;padding:10px;margin:2px 4px;width:auto}
+  .logo{justify-content:center;padding:.875rem .5rem}
+  .logo-mk{margin:0}
+  .metrics{grid-template-columns:repeat(2,1fr)}
+  .kanban,.cgrid,.g2{grid-template-columns:1fr}
+  .page{padding:1.25rem}
+}
+
+/* Estilo Bold — overrides finales */
+.card{background:var(--surface);border-color:var(--border)}
+input,select,textarea{background:var(--surface) !important;color:var(--text) !important;border-color:var(--border) !important}
+input::placeholder{color:var(--t3) !important}
+::-webkit-scrollbar-track{background:#F5F0E8}
+::-webkit-scrollbar-thumb{background:#CCC7BC;border-radius:4px}
+::-webkit-scrollbar-thumb:hover{background:#AAA49A}
+table{background:var(--surface)}
+tr:hover{background:var(--surface2) !important}
+.modal-bg{background:rgba(0,0,0,.5)}
+.modal{background:var(--surface) !important}
+#toast{background:#1A1A1A;color:#fff}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- SIDEBAR -->
+<nav class="sb">
+  <div class="logo">
+    <div class="logo-mk">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    </div>
+    <div><div class="logo-name">PM Dashboard</div><div class="logo-org">Grupo Bios</div></div>
+  </div>
+
+  <div class="nav-g">Vistas</div>
+  <button class="nav on" onclick="sp('tareas',this)" title="Tareas">
+    <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+    <span>Tareas</span><span class="np" id="pill-u">3</span>
+  </button>
+  <button class="nav" onclick="sp('alarmas',this)" title="Alarmas">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+    <span>Alarmas</span><span class="np am" id="pill-a">5</span>
+  </button>
+  <button class="nav" onclick="sp('resumen',this)" title="Resumen">
+    <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    <span>Resumen</span>
+  </button>
+
+  <div class="nav-g">Config</div>
+  <button class="nav" onclick="sp('plantillas',this)" title="Editar plantillas base">
+    <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    <span>Plantillas</span>
+  </button>
+  <button class="nav" onclick="sp('ajustes',this)" title="Ajustes">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+    <span>Ajustes</span>
+  </button>
+
+  <div class="sb-bot">
+    <button class="sync-btn" id="sync-btn" onclick="doSync()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 100 .49"/></svg>
+      <span>Sincronizar Gmail</span>
+    </button>
+    <button onclick="configurarURL()" style="width:100%;margin-top:6px;padding:7px;border-radius:var(--r);background:none;border:1px solid #333;color:#888880;font-size:11px;cursor:pointer;font-family:inherit" title="Configurar URL del Apps Script">
+      ⚙ <span>Configurar Apps Script</span>
+    </button>
+    <div class="conn"><span class="cdot-conn"></span>Gmail conectado</div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+
+<!-- ══ TAREAS ══ -->
+<div id="p-tareas" class="page on">
+  <div class="ph">
+    <div><div class="pt">Tareas activas</div><div class="ps" id="sync-lbl">Última sync: hoy 09:15 · 20 correos leídos · 12 tareas</div></div>
+    <div class="ha">
+      <input type="text" id="srch" placeholder="Buscar..." oninput="render()" style="width:190px">
+      <select id="csel" onchange="render()" style="font-size:12px;padding:5px 9px"><option value="all">Todos los clientes</option></select>
+      <button class="btn btn-b" onclick="openModal('modal-task')">
+        <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nueva tarea
+      </button>
+    </div>
+  </div>
+
+  <div class="astrip sw" id="abar">
+    <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span id="atext">3 tareas urgentes hoy · Validación TORAX 4pm · Integración BiosLIS sin avance</span>
+  </div>
+
+  <div class="metrics">
+    <div class="metric sel" onclick="sf('all',this)">
+      <div class="ml">Total activas</div><div class="mv" id="m0" style="color:#FF4D00">12</div>
+      <div class="bar"><div class="bf" id="b0" style="background:#FF4D00;width:100%"></div></div>
+    </div>
+    <div class="metric" onclick="sf('urgente',this)">
+      <div class="ml">Urgentes</div><div class="mv" id="m1" style="color:#FF4D00">3</div>
+      <div class="bar"><div class="bf" id="b1" style="background:#FF4D00;width:25%"></div></div>
+    </div>
+    <div class="metric" onclick="sf('delegado',this)">
+      <div class="ml">Delegadas</div><div class="mv" id="m2" style="color:#1A1A1A">4</div>
+      <div class="bar"><div class="bf" id="b2" style="background:#1A1A1A;width:33%"></div></div>
+    </div>
+    <div class="metric" onclick="sf('seguimiento',this)">
+      <div class="ml">Seguimiento</div><div class="mv" id="m3" style="color:#888880">5</div>
+      <div class="bar"><div class="bf" id="b3" style="background:#888880;width:42%"></div></div>
+    </div>
+  </div>
+
+  <div class="vrow">
+    <div class="vtog">
+      <button class="vbtn on" id="vk" onclick="sv('kanban')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="11" rx="1"/></svg>Kanban
+      </button>
+      <button class="vbtn" id="vl" onclick="sv('lista')">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>Lista
+      </button>
+    </div>
+  </div>
+
+  <div id="view-k"><div class="kanban" id="kb"></div></div>
+  <div id="view-l" style="display:none">
+    <div class="tw"><table>
+      <thead><tr>
+        <th style="width:34px"></th><th>Tarea</th>
+        <th style="width:120px">Cliente</th><th style="width:95px">Tipo</th>
+        <th style="width:85px">Vence</th><th style="width:75px">Alarma</th><th style="width:34px"></th>
+      </tr></thead>
+      <tbody id="lb"></tbody>
+    </table></div>
+  </div>
+</div>
+
+<!-- ══ ALARMAS ══ -->
+<div id="p-alarmas" class="page">
+  <div class="ph">
+    <div><div class="pt">Alarmas y recordatorios</div><div class="ps">Configura días de anticipación por tarea · 1 correo por alarma</div></div>
+    <button class="btn btn-b" onclick="openModal('modal-alarm')">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Nueva alarma
+    </button>
+  </div>
+  <div class="astrip sw" style="margin-bottom:1.25rem" id="alarm-bar">
+    <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+    <span id="alarm-bar-text">Sin alarmas activas</span>
+  </div>
+  <div id="alist"></div>
+</div>
+
+<!-- ══ RESUMEN ══ -->
+<div id="p-resumen" class="page">
+  <div class="ph">
+    <div><div class="pt">Resumen semanal</div><div class="ps" id="rdate"></div></div>
+    <button class="btn btn-b" onclick="genEmail()">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      Enviar resumen diario
+    </button>
+  </div>
+  <div class="cgrid">
+    <div class="ccard">
+      <div class="ctitle">Distribución por tipo</div>
+      <div class="cleg" id="donut-legend">
+        <span class="li"><span class="lsq" style="background:#FF4D00"></span>Urgente 0</span>
+        <span class="li"><span class="lsq" style="background:#1A1A1A"></span>Delegado 0</span>
+        <span class="li"><span class="lsq" style="background:#888880"></span>Seguimiento 0</span>
+      </div>
+      <div style="position:relative;height:160px"><canvas id="cd" role="img" aria-label="Distribución de tareas por tipo">Distribución por tipo.</canvas></div>
+    </div>
+    <div class="ccard">
+      <div class="ctitle">Tareas por proyecto</div>
+      <div style="position:relative;height:190px"><canvas id="cb" role="img" aria-label="Barras de tareas por proyecto">Distribución por proyecto.</canvas></div>
+    </div>
+  </div>
+  <div class="cgrid">
+    <div class="ccard">
+      <div class="ctitle">Alarmas disparadas esta semana</div>
+      <div style="position:relative;height:150px"><canvas id="cl" role="img" aria-label="Alarmas por día">Alarmas lun–vie.</canvas></div>
+    </div>
+    <div class="ccard">
+      <div class="ctitle">Estado general</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:.25rem">
+        <div style="background:var(--bg);border-radius:var(--r);padding:1rem;text-align:center"><div style="font-size:28px;font-weight:600;color:#FF4D00" id="sg-urg">0</div><div style="font-size:11px;color:var(--t2);margin-top:4px">urgentes</div></div>
+        <div style="background:var(--bg);border-radius:var(--r);padding:1rem;text-align:center"><div style="font-size:28px;font-weight:600;color:#22C55E" id="sg-del">0</div><div style="font-size:11px;color:var(--t2);margin-top:4px">delegadas</div></div>
+        <div style="background:var(--bg);border-radius:var(--r);padding:1rem;text-align:center"><div style="font-size:28px;font-weight:600;color:#60A5FA" id="sg-tot">0</div><div style="font-size:11px;color:var(--t2);margin-top:4px">tareas activas</div></div>
+        <div style="background:var(--bg);border-radius:var(--r);padding:1rem;text-align:center"><div style="font-size:28px;font-weight:600;color:#FCD34D" id="sg-ins">0</div><div style="font-size:11px;color:var(--t2);margin-top:4px">insistencias</div></div>
+      </div>
+    </div>
+  </div>
+  <div id="eprev" style="display:none">
+    <div class="ccard"><div class="ctitle">Resumen diario generado por IA</div><div class="prev" id="econtent"></div></div>
+  </div>
+</div>
+
+<!-- ══ PLANTILLAS ══ -->
+<div id="p-plantillas" class="page">
+  <div class="ph"><div><div class="pt">Plantillas base de correo</div><div class="ps">Edita el texto base · usa {tarea} {delegado} {cliente} {fecha} como variables</div></div></div>
+  <div class="card">
+    <div class="ct">Plantilla: Recordatorio</div>
+    <div class="cst">Se aplica al presionar "✉ Correo" en una tarea de tipo recordatorio</div>
+    <div class="field"><label>Cuerpo base</label>
+      <textarea id="tb1" style="min-height:160px">Estimado/a {delegado},
+
+Le escribo para recordarle que la tarea "{tarea}", correspondiente al proyecto {cliente}, tiene fecha de vencimiento el {fecha}.
 
 Le solicito confirmar el estado de avance a la brevedad posible.
 
 Saludos cordiales,
-{pm_nombre}
-{pm_cargo}`,
+Bryan Pozo — Project Manager, Grupo Bios</textarea>
+    </div>
+    <button class="btn btn-b" onclick="saveTpl('recordatorio')">Guardar plantilla de recordatorio</button>
+  </div>
+  <div class="card">
+    <div class="ct">Plantilla: Insistencia</div>
+    <div class="cst">Se aplica al presionar "✉ Correo" en una tarea de tipo insistencia</div>
+    <div class="field"><label>Cuerpo base</label>
+      <textarea id="tb2" style="min-height:160px">Estimado/a {delegado},
 
-  ASUNTO_INSISTENCIA: 'URGENTE: Seguimiento requerido — {tarea} sin respuesta',
-  CUERPO_INSISTENCIA:
-`Estimado/a {delegado},
-
-Me permito insistir respecto a la tarea pendiente "{tarea}" — proyecto {cliente}.
+Me permito insistir respecto a la tarea "{tarea}" — proyecto {cliente}.
 
 La fecha comprometida fue {fecha} y no hemos recibido confirmación de cierre.
 
-Le solicito responder antes de las próximas 24 horas. De no recibir respuesta, escalaremos a la jefatura.
+Le solicito responder en las próximas 24 horas. De no recibir respuesta, escalaremos a la jefatura.
 
 Saludos cordiales,
-{pm_nombre}
-{pm_cargo}`
-};
+Bryan Pozo — Project Manager, Grupo Bios</textarea>
+    </div>
+    <button class="btn btn-b" onclick="saveTpl('insistencia')">Guardar plantilla de insistencia</button>
+  </div>
+</div>
 
-// ─── FUNCIÓN PRINCIPAL ───────────────────────────────────────
-function syncGmailToDashboard() {
-  const ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const sheet = obtenerOCrearHoja(ss, 'Tareas');
-  const log   = obtenerOCrearHoja(ss, 'Log');
+<!-- ══ AJUSTES ══ -->
+<div id="p-ajustes" class="page">
+  <div class="ph"><div><div class="pt">Ajustes</div><div class="ps">Cuenta y preferencias de notificación</div></div></div>
+  <div class="card">
+    <div class="ct" style="margin-bottom:.875rem">Cuenta Gmail</div>
+    <div style="display:flex;align-items:center;gap:12px;padding:.75rem;background:var(--bg);border-radius:var(--r)">
+      <div style="width:40px;height:40px;border-radius:50%;background:var(--blue-bg);color:var(--blue);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">BP</div>
+      <div><div style="font-size:13px;font-weight:500">Bryan Pozo</div><div style="font-size:11px;color:var(--t3)">bryan.pozo@grupobios.cl · <span style="color:var(--green)">Conectado</span></div></div>
+      <button class="btn" style="margin-left:auto;font-size:12px">Cambiar cuenta</button>
+    </div>
+    <div class="srow" style="margin-top:.75rem">
+      <div>
+        <div class="sl">Índice de cuenta Gmail</div>
+        <div class="ss">Si el botón "Ver correo" abre la cuenta incorrecta, prueba 1, 2, 3... hasta dar con la correcta (bryan.pozo@grupobios.cl)</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="gmail-idx" onchange="setGmailAccount(this.value)" style="width:70px;font-size:13px">
+          <option value="0">0</option>
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="3">3</option>
+        </select>
+        <button class="btn btn-b" onclick="probarCuenta()" style="font-size:12px;padding:5px 10px">Probar</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct" style="margin-bottom:.875rem">Notificaciones</div>
+    <div class="srow"><div><div class="sl">Resumen diario por correo</div><div class="ss">Resumen automático cada mañana</div></div><label class="tsw"><input type="checkbox" checked><span class="trk"></span></label></div>
+    <div class="srow"><div><div class="sl">Hora de envío</div></div><input type="time" value="08:00" style="width:110px"></div>
+    <div class="srow"><div><div class="sl">Alarmas de insistencia</div><div class="ss">Correo formal al delegado 24h antes</div></div><label class="tsw"><input type="checkbox" checked><span class="trk"></span></label></div>
+    <div class="srow"><div><div class="sl">Repetir si no responde</div><div class="ss">Reenviar cada 24h sin respuesta</div></div><label class="tsw"><input type="checkbox" checked><span class="trk"></span></label></div>
+  <div class="card">
+    <div class="ct" style="margin-bottom:.875rem">Conexión Apps Script</div>
+    <div class="ss" style="margin-bottom:.75rem">URL del Web App publicado en Google Apps Script (termina en <code>/exec</code>)</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input type="text" id="as-url-input" placeholder="https://script.google.com/macros/s/.../exec" style="flex:1;font-size:12px;font-family:monospace" oninput="this.style.borderColor=''">
+      <button class="btn btn-b" onclick="saveAppsScriptUrl()" style="white-space:nowrap">Guardar URL</button>
+    </div>
+    <div id="as-url-status" style="font-size:11px;margin-top:6px;color:var(--t3)"></div>
+  </div>
+  <div class="card"><div class="ct" style="margin-bottom:.875rem">Datos del dashboard</div><div style="display:flex;align-items:center;justify-content:space-between"><div><div class="sl">Resetear todos los datos</div><div class="ss">Borra tareas y alarmas y vuelve al estado inicial</div></div><button class="btn btn-r" onclick="resetData()">Resetear datos</button></div>
+  </div>
+</div>
 
-  registrarLog(log, 'INFO', '── Inicio sincronización Gmail → Dashboard ──');
+</div><!-- /main -->
+</div><!-- /app -->
 
-  try {
-    const tareasNuevas     = leerCorreosEtiquetados(log);
-    const tareasExistentes = cargarTareasExistentes(sheet);
-    let agregadas = 0;
+<!-- MODAL TAREA -->
+<div id="modal-task" class="modal-bg" onclick="if(event.target===this)closeModal('modal-task')">
+  <div class="modal-box">
+    <div class="modal-title">Nueva tarea</div>
+    <div class="g2">
+      <div class="field" style="grid-column:1/-1"><label>Descripción</label><input type="text" id="nt-t" placeholder="¿Qué hay que hacer?"></div>
+      <div class="field"><label>Cliente</label><input type="text" id="nt-c" placeholder="ej: TrackCare"></div>
+      <div class="field"><label>Tipo</label><select id="nt-tp"><option value="urgente">Urgente</option><option value="seguimiento" selected>Seguimiento</option><option value="delegado">Delegado</option></select></div>
+      <div class="field"><label>Asignado a</label><input type="text" id="nt-a" placeholder="Nombre"></div>
+      <div class="field"><label>Fecha vencimiento</label><input type="date" id="nt-d"></div>
+      <div class="field" style="grid-column:1/-1"><label>Origen</label><input type="text" id="nt-s" placeholder="ej: correo de cliente"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-task')">Cancelar</button>
+      <button class="btn btn-b" onclick="addTask()">Agregar</button>
+    </div>
+  </div>
+</div>
 
-    registrarLog(log, 'INFO', `Correos encontrados: ${tareasNuevas.length}`);
+<!-- MODAL ALARMA -->
+<div id="modal-alarm" class="modal-bg" onclick="if(event.target===this)closeModal('modal-alarm')">
+  <div class="modal-box">
+    <div class="modal-title">Configurar alarma</div>
+    <input type="hidden" id="na-tid" value="">
+    <div class="g2">
+      <div class="field" style="grid-column:1/-1"><label>Tarea</label><input type="text" id="na-t" placeholder="Descripción de la tarea"></div>
+      <div class="field"><label>Cliente</label><input type="text" id="na-c" placeholder="Proyecto / Cliente"></div>
+      <div class="field"><label>Delegado</label><input type="text" id="na-a" placeholder="Nombre del responsable"></div>
+      <div class="field"><label>Correo del delegado</label><input type="email" id="na-e" placeholder="delegado@empresa.cl"></div>
+      <div class="field"><label>Fecha vencimiento</label><input type="date" id="na-d"></div>
+      <div class="field"><label>Anticipación del recordatorio</label>
+        <div style="display:flex;gap:8px">
+          <input type="number" id="na-cant" min="1" max="999" value="30" style="width:90px" placeholder="30">
+          <select id="na-unit" style="flex:1">
+            <option value="min">Minutos antes</option>
+            <option value="hr" selected>Horas antes</option>
+            <option value="day">Días antes</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>Tipo de alerta</label><select id="na-tp"><option value="recordatorio">Recordatorio (1 correo)</option><option value="insistencia">Insistencia (si no responde)</option><option value="ambos">Recordatorio + Insistencia</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-alarm')">Cancelar</button>
+      <button class="btn btn-b" onclick="addAlarm()">Crear alarma</button>
+    </div>
+  </div>
+</div>
 
-    tareasNuevas.forEach(t => {
-      const yaExiste = tareasExistentes.some(e => e.threadId === t.threadId);
-      if (!yaExiste) {
-        agregarTarea(sheet, t);
-        agregadas++;
-        registrarLog(log, 'OK', `✓ Agregada: "${t.titulo}" [${t.tipo}] — ${t.cliente}`);
-      }
+<!-- MODAL PLANTILLA CORREO -->
+<div id="modal-plantilla" class="modal-bg" onclick="if(event.target===this)closeModal('modal-plantilla')">
+  <div class="modal-box" style="max-width:620px;max-height:92vh;overflow-y:auto">
+    <div class="modal-title">Redactar correo</div>
+    <input type="hidden" id="pt-tid" value="">
+
+    <!-- Destinatarios -->
+    <div class="field">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        Para
+        <button onclick="addRecipRow('pt-to-list')" style="background:none;border:none;color:#FF4D00;font-size:12px;cursor:pointer;padding:0">+ Agregar destinatario</button>
+      </label>
+      <div id="pt-to-list" style="display:flex;flex-direction:column;gap:5px">
+        <input type="email" class="pt-to" placeholder="destinatario@empresa.cl" style="width:100%">
+      </div>
+    </div>
+
+    <!-- CC -->
+    <div class="field">
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        Con copia (CC)
+        <button onclick="addRecipRow('pt-cc-list')" style="background:none;border:none;color:#FF4D00;font-size:12px;cursor:pointer;padding:0">+ Agregar CC</button>
+      </label>
+      <div id="pt-cc-list" style="display:flex;flex-direction:column;gap:5px">
+        <input type="email" class="pt-cc" placeholder="copia@empresa.cl (opcional)" style="width:100%">
+      </div>
+    </div>
+
+    <div class="g2">
+      <div class="field"><label>Tipo de plantilla</label>
+        <select id="pt-tpl" onchange="changePlantillaTpl()">
+          <option value="recordatorio">Recordatorio</option>
+          <option value="insistencia">Insistencia</option>
+        </select>
+      </div>
+      <div class="field"><label>Asunto</label><input type="text" id="pt-asunto" style="width:100%"></div>
+    </div>
+
+    <div class="field"><label>Cuerpo del correo</label>
+      <textarea id="pt-cuerpo" style="width:100%;min-height:180px"></textarea>
+    </div>
+
+    <!-- Estado de envío directo -->
+    <div id="pt-send-status" style="display:none;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:8px"></div>
+
+    <div class="modal-footer" style="flex-wrap:wrap;gap:8px">
+      <button class="btn" onclick="closeModal('modal-plantilla')">Cancelar</button>
+      <button class="btn" onclick="copiarPlantilla()">📋 Copiar</button>
+      <button class="btn" onclick="abrirGmail()">↗ Abrir en Gmail</button>
+      <button class="btn btn-b" id="btn-enviar-directo" onclick="enviarDirecto()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;display:inline;vertical-align:middle;margin-right:3px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        Enviar ahora
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL CONFIG URL -->
+<div id="modal-config-url" class="modal-bg" onclick="if(event.target===this)closeModal('modal-config-url')">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-title">Configurar Apps Script</div>
+    <div class="ss" style="margin-bottom:1rem">Pega aquí la URL de tu Web App publicado en Google Apps Script. Debe terminar en <code style="background:var(--bg);padding:2px 5px;border-radius:3px">/exec</code></div>
+    <div class="field">
+      <label>URL del Apps Script</label>
+      <input type="text" id="modal-as-url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;font-size:12px;font-family:monospace">
+    </div>
+    <div id="modal-as-status" style="font-size:12px;margin-top:4px;min-height:18px"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modal-config-url')">Cancelar</button>
+      <button class="btn btn-b" onclick="guardarURLModal()">Guardar y cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const PAL=['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#BE185D','#065F46'];
+const CM={};let CI=0;
+function cc(c){if(!CM[c])CM[c]=PAL[CI++%PAL.length];return CM[c];}
+const today=new Date();today.setHours(0,0,0,0);
+function dl(s){const d=new Date(s);d.setHours(0,0,0,0);return Math.round((d-today)/86400000);}
+// Minutos restantes hasta una fecha (con hora exacta del día si viene en 'day')
+function dlMin(al){
+  const d=new Date(al.d);
+  // Si la alarma es en días, la fecha vence al final del día (23:59)
+  if(al.unit==='day'||!al.unit){d.setHours(23,59,0,0);}
+  return Math.round((d-new Date())/60000);
+}
+// Retorna true si la alarma debe dispararse ahora
+function shouldFire(al){
+  if(!al.on||al.st==='ok')return false;
+  const minLeft=dlMin(al);
+  const trigger=al.minutos||(al.cant||1)*1440; // fallback días
+  return minLeft<=trigger&&minLeft>-1440; // entre ahora y 24h después del vencimiento
+}
+
+// Check alarmas cada 30 segundos
+function checkAlarms(){
+  let changed=false;
+  alarms.forEach(al=>{
+    if(al.on&&al.st==='pend'&&shouldFire(al)){
+      al.st='fire';changed=true;
+      notifyAlarm(al);
+    }
+  });
+  if(changed){save();renderAlarms();}
+}
+setInterval(checkAlarms,30000);
+
+// Notificación del navegador
+function notifyAlarm(al){
+  const msg=`"${al.t}" · ${al.c} · vence ${fd(al.d)}`;
+  if(Notification.permission==='granted'){
+    new Notification('⏰ Alarma PM Dashboard',{body:msg,icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><text y="18" font-size="18">🔔</text></svg>'});
+  }else{
+    toast('⏰ ALARMA: '+msg);
+  }
+}
+
+// Pedir permiso de notificaciones al cargar
+if(typeof Notification!=='undefined'&&Notification.permission==='default'){
+  Notification.requestPermission();
+}
+function dc(n){return n<0||n<=1?'due-r':n<=3?'due-a':'due-g';}
+function dlb(n){return n<0?'Vencida':n===0?'Hoy':n===1?'Mañana':n+'d';}
+
+// Tiempo restante hasta la alarma (no hasta vencimiento)
+function fmtAntic(al){
+  const minLeft=dlMin(al);
+  const triggerMin=al.minutos||(al.cant||1)*1440;
+  const minHastaAlarma=minLeft-triggerMin;
+  if(minHastaAlarma<=0)return'vence hoy';
+  if(minHastaAlarma<60)return minHastaAlarma+'m';
+  if(minHastaAlarma<1440)return Math.round(minHastaAlarma/60)+'h';
+  return Math.round(minHastaAlarma/1440)+'d';
+}
+function fd(s){return new Date(s).toLocaleDateString('es-CL',{day:'numeric',month:'short'});}
+function tn(){return new Date().toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});}
+
+// Datos vacíos — se cargan desde Google Sheets al sincronizar
+const DEFAULT_TASKS=[];
+const DEFAULT_ALARMS=[];
+
+function loadData(){
+  try{
+    const st=localStorage.getItem('pm_tasks');
+    const sa=localStorage.getItem('pm_alarms');
+    const snt=localStorage.getItem('pm_nextT');
+    const sna=localStorage.getItem('pm_nextA');
+    return{
+      tasks: st ? JSON.parse(st) : DEFAULT_TASKS,
+      alarms: sa ? JSON.parse(sa) : DEFAULT_ALARMS,
+      nextT: snt ? parseInt(snt) : 13,
+      nextA: sna ? parseInt(sna) : 6,
+    };
+  }catch(e){return{tasks:DEFAULT_TASKS,alarms:DEFAULT_ALARMS,nextT:13,nextA:6};}
+}
+
+function save(){
+  try{
+    localStorage.setItem('pm_tasks', JSON.stringify(tasks));
+    localStorage.setItem('pm_alarms', JSON.stringify(alarms));
+    localStorage.setItem('pm_nextT', nextT);
+    localStorage.setItem('pm_nextA', nextA);
+  }catch(e){}
+}
+
+function resetData(){
+  if(!confirm('¿Resetear todos los datos? Esto borrará tareas y alarmas guardadas.'))return;
+  localStorage.removeItem('pm_tasks');localStorage.removeItem('pm_alarms');
+  localStorage.removeItem('pm_nextT');localStorage.removeItem('pm_nextA');
+  const d=loadData();tasks=d.tasks;alarms=d.alarms;nextT=d.nextT;nextA=d.nextA;
+  render();renderAlarms();toast('Datos reseteados');
+}
+
+const _loaded=loadData();
+let tasks=_loaded.tasks;
+let nextT=_loaded.nextT;
+let alarms=_loaded.alarms;
+let nextA=_loaded.nextA;
+
+let AF='all',AV='kanban';
+
+function sp(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.nav').forEach(n=>n.classList.remove('on'));
+  document.getElementById('p-'+id).classList.add('on');
+  if(el)el.classList.add('on');
+  if(id==='ajustes')loadAppsScriptUrlField();
+}
+
+function sf(t,el){
+  document.querySelectorAll('.metric').forEach(m=>m.classList.remove('sel'));
+  el.classList.add('sel');AF=t;render();
+}
+
+function sv(v){
+  AV=v;
+  document.getElementById('vk').classList.toggle('on',v==='kanban');
+  document.getElementById('vl').classList.toggle('on',v==='lista');
+  document.getElementById('view-k').style.display=v==='kanban'?'block':'none';
+  document.getElementById('view-l').style.display=v==='lista'?'block':'none';
+  render();
+}
+
+function gf(){
+  const q=(document.getElementById('srch')?.value||'').toLowerCase();
+  const cf=document.getElementById('csel')?.value||'all';
+  return tasks.filter(t=>{
+    if(t.dn)return false;
+    if(AF!=='all'&&t.tp!==AF)return false;
+    if(cf!=='all'&&t.c!==cf)return false;
+    if(q&&!t.t.toLowerCase().includes(q)&&!t.c.toLowerCase().includes(q))return false;
+    return true;
+  }).sort((a,b)=>{const p={urgente:0,seguimiento:1,delegado:2};return(p[a.tp]??1)-(p[b.tp]??1)||dl(a.d)-dl(b.d);});
+}
+
+function render(){
+  const cl=[...new Set(tasks.filter(t=>!t.dn).map(t=>t.c))].sort();
+  const sel=document.getElementById('csel');
+  if(sel){const pv=sel.value;sel.innerHTML='<option value="all">Todos los clientes</option>';cl.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;if(c===pv)o.selected=true;sel.appendChild(o);});}
+  const ac=tasks.filter(t=>!t.dn);
+  const tot=ac.length,u=ac.filter(t=>t.tp==='urgente').length,d=ac.filter(t=>t.tp==='delegado').length,s=ac.filter(t=>t.tp==='seguimiento').length;
+  document.getElementById('m0').textContent=tot;document.getElementById('m1').textContent=u;
+  document.getElementById('m2').textContent=d;document.getElementById('m3').textContent=s;
+  document.getElementById('pill-u').textContent=u;
+  setTimeout(()=>{
+    document.getElementById('b0').style.width='100%';
+    document.getElementById('b1').style.width=Math.round(u/tot*100)+'%';
+    document.getElementById('b2').style.width=Math.round(d/tot*100)+'%';
+    document.getElementById('b3').style.width=Math.round(s/tot*100)+'%';
+  },80);
+  const venc=ac.filter(t=>dl(t.d)<0).length,hoy=ac.filter(t=>dl(t.d)===0).length;
+  const ab=document.getElementById('abar');
+  if(venc||hoy){ab.className='astrip sw';document.getElementById('atext').textContent=(venc?venc+' tarea(s) vencida(s). ':'')+(hoy?hoy+' vence(n) hoy.':'');}
+  else{ab.className='astrip so';document.getElementById('atext').textContent='Sin vencimientos críticos hoy.';}
+  if(AV==='kanban')renderK();else renderL();
+  if(typeof donutChart!=='undefined'&&donutChart)initCharts();
+}
+
+const svgCk=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><polyline points="20 6 9 17 4 12"/></svg>`;
+const svgBl=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>`;
+const svgMail=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`;
+const svgMail2=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:11px;height:11px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><line x1="12" y1="12" x2="12" y2="18"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`;
+
+function renderK(){
+  const cols={urgente:[],seguimiento:[],delegado:[]};
+  gf().forEach(t=>{if(cols[t.tp])cols[t.tp].push(t);});
+  const lbl={urgente:'Urgente',seguimiento:'Seguimiento',delegado:'Delegado'};
+  const clr={urgente:'#FF4D00',seguimiento:'#888880',delegado:'#1A1A1A'};
+  document.getElementById('kb').innerHTML=Object.keys(cols).map(k=>`
+    <div class="kol">
+      <div class="kol-h"><span class="kol-t" style="color:${clr[k]}">${lbl[k]}</span><span class="kol-n">${cols[k].length}</span></div>
+      ${cols[k].length?cols[k].map(t=>`<div class="kcard">
+        <div class="kcard-t">${t.t}</div>
+        <div class="kcard-c"><span class="cdot" style="background:${cc(t.c)}"></span>${t.c}${t.a?` · ${t.a}`:''}</div>
+        <div class="kcard-s">${t.s||''}</div>
+        <div class="kcard-f">
+          <span class="${dc(dl(t.d))}">${dlb(dl(t.d))}</span>
+          ${t.ha?`<span class="bell-tag">${svgBl}${t.sent>0?t.sent+' env.':'24h'}</span>`:''}
+          <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+            ${t.threadId?`<a href="javascript:void(0)" onclick="abrirCorreo('${t.threadId}')" title="Abrir correo en Gmail" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--t2);text-decoration:none;transition:all .1s" onmouseover="this.style.background='#FFF0EB';this.style.color='#FF4D00';this.style.borderColor='#FF4D00'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--t2)';this.style.borderColor='var(--border)'">${svgMail} Ver correo</a>`:''}
+            <button class="done-btn" title="Configurar alarma" onclick="openAlarmForTask(${t.id})" style="padding:3px 8px">${svgBl} Alarma${t.ha?` ✓`:''}</button>
+            <button class="done-btn" title="Crear correo desde plantilla" onclick="openPlantillaForTask(${t.id})" style="padding:3px 8px">${svgMail2} Correo</button>
+            <button class="done-btn" onclick="done(${t.id})">${svgCk} Listo</button>
+          </div>
+        </div>
+      </div>`).join(''):`<div class="empty">Sin tareas</div>`}
+    </div>`).join('');
+}
+
+function renderL(){
+  const f=gf();
+  const TM={urgente:'bu',delegado:'bd',seguimiento:'bs'};
+  const TL={urgente:'Urgente',delegado:'Delegado',seguimiento:'Seguimiento'};
+  document.getElementById('lb').innerHTML=f.length?f.map(t=>`<tr>
+    <td><input type="checkbox" onchange="done(${t.id})"></td>
+    <td><div class="tn">${t.t}</div><div class="ts">${t.a||''}</div></td>
+    <td><span class="cdot" style="background:${cc(t.c)};display:inline-block;margin-right:5px;vertical-align:middle"></span>${t.c}</td>
+    <td><span class="badge ${TM[t.tp]}">${TL[t.tp]}</span></td>
+    <td><span class="${dc(dl(t.d))}">${dlb(dl(t.d))}</span></td>
+    <td>${t.ha?`<span class="bell-tag">${svgBl}${t.sent>0?t.sent:'24h'}</span>`:'<span style="color:var(--t3)">—</span>'}</td>
+    <td style="white-space:nowrap">
+      ${t.threadId?`<a href="javascript:void(0)" onclick="abrirCorreo('${t.threadId}')" title="Abrir correo" style="display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:3px 8px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--t2);text-decoration:none;margin-right:4px" onmouseover="this.style.background='#FFF0EB';this.style.color='#FF4D00'" onmouseout="this.style.background='var(--surface)';this.style.color='var(--t2)'">${svgMail}</a>`:''}
+      <button title="Alarma" onclick="openAlarmForTask(${t.id})" style="background:none;border:none;cursor:pointer;color:${t.ha?'#FF4D00':'var(--t3)'};font-size:15px;padding:2px 4px" title="${t.ha?'Alarma activa':'Sin alarma'}">${t.ha?'🔔':'🔕'}</button>
+      <button title="Plantilla correo" onclick="openPlantillaForTask(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:15px;padding:2px 4px">✉</button>
+      <button onclick="del(${t.id})" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:17px;padding:2px 4px">×</button>
+    </td>
+  </tr>`).join(''):`<tr><td colspan="7" class="empty">Sin tareas.</td></tr>`;
+}
+
+function abrirCorreo(threadId){
+  if(!threadId||threadId==='undefined'||threadId===undefined||String(threadId).trim()===''){
+    toast('Esta tarea no tiene correo vinculado — sincroniza Gmail primero');return;
+  }
+  const id=String(threadId).replace(/^['\s]+|['\s]+$/g,'').trim();
+  if(!id||id.length<10){
+    toast('ID de correo inválido — sincroniza Gmail para actualizar');return;
+  }
+  const idx=localStorage.getItem('gmail_account_index')||'1';
+  const url=`https://mail.google.com/mail/u/${idx}/#all/${id}`;
+  window.open(url,'_blank');
+  toast(`Abriendo en cuenta u/${idx} — si no es la correcta, cambia el índice en Ajustes`);
+}
+
+function done(id){
+  const t=tasks.find(x=>x.id===id);
+  if(!t)return;
+  t.dn=true;
+  if(t.threadId){
+    const st=JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
+    st[t.threadId]='completado';
+    localStorage.setItem('pm_tasks_state',JSON.stringify(st));
+    // Actualizar Sheet automáticamente
+    actualizarEstadoSheet(t.threadId);
+  }
+  save();render();toast('✓ Tarea completada');
+}
+
+function actualizarEstadoSheet(threadId){
+  const url=localStorage.getItem('apps_script_url');
+  if(!url)return;
+  const sendUrl=`${url}?action=completar&threadId=${encodeURIComponent(threadId)}&token=gbios2026pm`;
+  // Apps Script publicado como anónimo — no necesita credenciales de sesión
+  fetch(sendUrl,{method:'GET',mode:'no-cors'}).catch(()=>{});
+}
+function del(id){tasks=tasks.filter(x=>x.id!==id);save();render();toast('Tarea eliminada');}
+
+// ── Alarma desde tarjeta ──
+function openAlarmForTask(taskId){
+  const t=tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  // Pre-llenar modal de alarma con datos de la tarea
+  document.getElementById('na-t').value=t.t;
+  document.getElementById('na-c').value=t.c||'';
+  document.getElementById('na-a').value=t.a||'';
+  document.getElementById('na-e').value=t.ae||'';
+  document.getElementById('na-d').value=t.d||'';
+  document.getElementById('na-tid').value=taskId;
+  openModal('modal-alarm');
+}
+
+// ── Plantilla de correo desde tarjeta ──
+// ── Helpers destinatarios ──
+function addRecipRow(listId){
+  const list=document.getElementById(listId);
+  const cls=listId==='pt-to-list'?'pt-to':'pt-cc';
+  const wrap=document.createElement('div');
+  wrap.style.cssText='display:flex;gap:5px;align-items:center';
+  wrap.innerHTML=`<input type="email" class="${cls}" placeholder="${cls==='pt-to'?'destinatario':'copia'}@empresa.cl" style="flex:1"><button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:18px;line-height:1;padding:0 2px">×</button>`;
+  list.appendChild(wrap);
+}
+function getEmails(cls){
+  return [...document.querySelectorAll('.'+cls)].map(i=>i.value.trim()).filter(Boolean);
+}
+
+function openPlantillaForTask(taskId){
+  const t=tasks.find(x=>x.id===taskId);
+  if(!t)return;
+  const delegado=t.a||'Responsable';
+  const cliente=t.c||'';
+  const tarea=t.t||'';
+  const fecha=t.d?new Date(t.d).toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'}):'';
+  const tpl1=localStorage.getItem('pm_tpl1')||`Estimado/a {delegado},\n\nLe escribo para recordarle que la tarea "{tarea}", correspondiente al proyecto {cliente}, tiene fecha de vencimiento el {fecha}.\n\nLe solicito confirmar el estado de avance a la brevedad posible.\n\nSaludos cordiales,\nBryan Pozo — Project Manager, Grupo Bios`;
+  const repl=s=>s.replace(/{tarea}/g,tarea).replace(/{delegado}/g,delegado).replace(/{cliente}/g,cliente).replace(/{fecha}/g,fecha);
+  // Limpiar campos destinatarios
+  document.getElementById('pt-to-list').innerHTML=`<input type="email" class="pt-to" placeholder="destinatario@empresa.cl" style="width:100%" value="${t.ae||''}">`;
+  document.getElementById('pt-cc-list').innerHTML=`<input type="email" class="pt-cc" placeholder="copia@empresa.cl (opcional)" style="width:100%">`;
+  document.getElementById('pt-tpl').value='recordatorio';
+  document.getElementById('pt-asunto').value=`Recordatorio: "${tarea}" — vence ${fecha}`;
+  document.getElementById('pt-cuerpo').value=repl(tpl1);
+  document.getElementById('pt-tid').value=taskId;
+  document.getElementById('pt-send-status').style.display='none';
+  openModal('modal-plantilla');
+}
+
+function changePlantillaTpl(){
+  const tid=parseInt(document.getElementById('pt-tid').value||'0');
+  const t=tasks.find(x=>x.id===tid);
+  const delegado=t?t.a:'Responsable';
+  const cliente=t?t.c:'';
+  const tarea=t?t.t:'';
+  const fecha=t&&t.d?new Date(t.d).toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'}):'';
+  const repl=s=>s.replace(/{tarea}/g,tarea).replace(/{delegado}/g,delegado).replace(/{cliente}/g,cliente).replace(/{fecha}/g,fecha);
+  const tipo=document.getElementById('pt-tpl').value;
+  if(tipo==='recordatorio'){
+    const tpl=localStorage.getItem('pm_tpl1')||`Estimado/a {delegado},\n\nLe escribo para recordarle que la tarea "{tarea}", correspondiente al proyecto {cliente}, tiene fecha de vencimiento el {fecha}.\n\nLe solicito confirmar el estado de avance a la brevedad posible.\n\nSaludos cordiales,\nBryan Pozo — Project Manager, Grupo Bios`;
+    document.getElementById('pt-asunto').value=`Recordatorio: "${tarea}" — vence ${fecha}`;
+    document.getElementById('pt-cuerpo').value=repl(tpl);
+  }else{
+    const tpl=localStorage.getItem('pm_tpl2')||`Estimado/a {delegado},\n\nMe permito insistir respecto a la tarea "{tarea}" — proyecto {cliente}.\n\nLa fecha comprometida fue {fecha} y no hemos recibido confirmación de cierre.\n\nLe solicito responder en las próximas 24 horas.\n\nSaludos cordiales,\nBryan Pozo — Project Manager, Grupo Bios`;
+    document.getElementById('pt-asunto').value=`URGENTE: "${tarea}" sin respuesta — ${cliente}`;
+    document.getElementById('pt-cuerpo').value=repl(tpl);
+  }
+}
+
+function savePlantillaTpl(){toast('Para editar la plantilla base, hazlo desde la sección Plantillas');}
+
+function copiarPlantilla(){
+  const tos=getEmails('pt-to').join(', ');
+  const ccs=getEmails('pt-cc').join(', ');
+  const asunto=document.getElementById('pt-asunto').value;
+  const cuerpo=document.getElementById('pt-cuerpo').value;
+  const texto=`Para: ${tos}\n${ccs?'CC: '+ccs+'\n':''}Asunto: ${asunto}\n\n${cuerpo}`;
+  navigator.clipboard.writeText(texto).then(()=>toast('Copiado al portapapeles')).catch(()=>toast('No se pudo copiar'));
+}
+
+function abrirGmail(){
+  const tos=getEmails('pt-to');
+  const ccs=getEmails('pt-cc');
+  const asunto=encodeURIComponent(document.getElementById('pt-asunto').value);
+  const cuerpo=encodeURIComponent(document.getElementById('pt-cuerpo').value);
+  const idx=localStorage.getItem('gmail_account_index')||'1';
+  const toParam=tos.length?`&to=${encodeURIComponent(tos.join(','))}`:'';
+  const ccParam=ccs.length?`&cc=${encodeURIComponent(ccs.join(','))}`:'';
+  window.open(`https://mail.google.com/mail/u/${idx}/?view=cm&fs=1${toParam}${ccParam}&su=${asunto}&body=${cuerpo}`,'_blank');
+  closeModal('modal-plantilla');
+}
+
+// ── Envío directo via Apps Script ──
+// doPost falla por auth redirect desde Netlify.
+// Solución: abrir la URL de envío en una pestaña nueva (autenticada como el usuario).
+// El script ejecuta doGet?action=sendEmail y cierra solo.
+function enviarDirecto(){
+  const tos=getEmails('pt-to');
+  if(!tos.length){toast('Agrega al menos un destinatario');return;}
+  const ccs=getEmails('pt-cc');
+  const asunto=document.getElementById('pt-asunto').value.trim();
+  const cuerpo=document.getElementById('pt-cuerpo').value.trim();
+  if(!asunto||!cuerpo){toast('Completa asunto y cuerpo');return;}
+
+  const url=localStorage.getItem('apps_script_url');
+  if(!url){toast('Configura la URL del Apps Script en Ajustes primero');return;}
+
+  const btn=document.getElementById('btn-enviar-directo');
+  const status=document.getElementById('pt-send-status');
+  const svgSend='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;display:inline;vertical-align:middle;margin-right:3px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>';
+
+  btn.disabled=true;btn.innerHTML=svgSend+'Enviando...';
+  status.style.cssText='display:block;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:8px;background:#EDE8DF;color:#555550';
+  status.textContent='Abriendo ventana de envío...';
+
+  // Construir URL GET con parámetros — doGet los recibe y envía el correo
+  const params=new URLSearchParams({
+    action:'sendEmail',
+    to:tos.join('|'),
+    cc:ccs.filter(Boolean).join('|'),
+    subject:asunto,
+    body:cuerpo
+  });
+  const sendUrl=url+(url.includes('?')?'&':'?')+params.toString();
+
+  // fetch no-cors: invisible, sin ventana, sin pantalla negra
+  fetch(sendUrl,{method:'GET',mode:'no-cors',credentials:'include'}).catch(()=>{});
+
+  status.style.cssText='display:block;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:8px;background:#EDE8DF;color:#555550';
+  status.textContent='Enviando...';
+
+  // Esperar 4s para que el script procese
+  setTimeout(()=>{
+    status.style.cssText='display:block;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:8px;background:#E6F4EA;color:#1B5E20';
+    status.textContent=`✓ Correo enviado a ${tos.join(', ')}${ccs.filter(Boolean).length?' · CC: '+ccs.filter(Boolean).join(', '):''}`;
+    const tid=parseInt(document.getElementById('pt-tid').value||'0');
+    const task=tasks.find(x=>x.id===tid);
+    if(task){const al=alarms.find(a=>a.id===task.alarmId);if(al){al.sent++;al.st='fire';save();renderAlarms();}}
+    btn.innerHTML=svgSend+'✓ Enviado';
+    setTimeout(()=>{closeModal('modal-plantilla');btn.disabled=false;btn.innerHTML=svgSend+'Enviar ahora';},2500);
+  },4000);
+}
+
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+
+function addTask(){
+  const t=document.getElementById('nt-t').value.trim();
+  const c=document.getElementById('nt-c').value.trim();
+  const d=document.getElementById('nt-d').value;
+  if(!t||!c||!d){toast('Completa tarea, cliente y fecha');return;}
+  tasks.unshift({id:nextT++,t,c,tp:document.getElementById('nt-tp').value,a:document.getElementById('nt-a').value||'Yo',d,dn:false,s:document.getElementById('nt-s').value||'',ha:false,sent:0});
+  closeModal('modal-task');
+  ['nt-t','nt-c','nt-a','nt-s'].forEach(i=>document.getElementById(i).value='');
+  save();render();toast('Tarea agregada');
+}
+
+function addAlarm(){
+  const t=document.getElementById('na-t').value.trim();
+  const c=document.getElementById('na-c').value.trim();
+  const d=document.getElementById('na-d').value;
+  if(!t||!c||!d){toast('Completa tarea, cliente y fecha');return;}
+  const cant=parseInt(document.getElementById('na-cant').value)||30;
+  const unit=document.getElementById('na-unit').value; // 'min','hr','day'
+  const taskId=parseInt(document.getElementById('na-tid').value||'0');
+  // Calcular minutos de anticipación para comparar con dl()
+  const minutos=unit==='min'?cant:unit==='hr'?cant*60:cant*1440;
+  const diasEquiv=minutos/1440;
+  const labels={'min':'min','hr':'h','day':cant===1?'día':'días'};
+  const newAlarm={id:nextA++,t,c,a:document.getElementById('na-a').value,e:document.getElementById('na-e').value,d,cant,unit,minutos,on:true,sent:0,st:shouldFire({on:true,st:'pend',d,minutos})?'fire':'pend',tp:document.getElementById('na-tp').value};
+  alarms.unshift(newAlarm);
+  if(taskId){
+    const task=tasks.find(x=>x.id===taskId);
+    if(task){task.ha=true;task.alarmId=newAlarm.id;}
+    save();render();
+  }
+  document.getElementById('pill-a').textContent=alarms.length;
+  closeModal('modal-alarm');
+  document.getElementById('na-tid').value='';
+  save();renderAlarms();toast(`Alarma creada · ${cant} ${labels[unit]} antes del vencimiento`);
+}
+
+function renderAlarms(){
+  // Barra de resumen dinámica
+  const activas=alarms.filter(a=>a.on).length;
+  const disp=alarms.filter(a=>a.on&&a.st==='fire').length;
+  const enviados=alarms.reduce((s,a)=>s+(a.sent||0),0);
+  const barEl=document.getElementById('alarm-bar');
+  const barTxt=document.getElementById('alarm-bar-text');
+  if(barTxt){
+    if(activas===0){
+      barEl.className='astrip so';barEl.style.marginBottom='1.25rem';
+      barTxt.textContent='Sin alarmas activas. Crea una con el botón superior.';
+    }else{
+      barEl.className='astrip sw';barEl.style.marginBottom='1.25rem';
+      barTxt.textContent=`${activas} alarma${activas>1?'s':''} activa${activas>1?'s':''} · ${disp} disparada${disp!==1?'s':''} hoy · ${enviados} correo${enviados!==1?'s':''} de insistencia enviado${enviados!==1?'s':''}`;
+    }
+  }
+  if(document.getElementById('pill-a'))document.getElementById('pill-a').textContent=alarms.length;
+
+  const SC={fire:['#FFF0EB','#FF4D00'],pend:['#EDE8DF','#555550'],ok:['#EDE8DF','#1A1A1A']};
+  const svgB=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>`;
+  const svgSd=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`;
+  document.getElementById('alist').innerHTML=alarms.map(al=>{
+    const[bg,col]=SC[al.st]||SC.ok;
+    return`<div class="arow" style="${!al.on?'opacity:.45':''}">
+      <div class="aicon" style="background:${bg};color:${col}">${svgB}</div>
+      <div class="abody">
+        <div class="atitle">${al.t}</div>
+        <div class="ameta">
+          <span>${al.c}</span>
+          <span>· ${al.a}</span>
+          <span>· ${fd(al.d)}</span>
+          <span style="color:var(--t3)">· ${fmtAntic(al)} restantes</span>
+          <span class="badge ${al.st==='fire'?'bu':al.st==='pend'?'bs':'bd'}">${al.st==='fire'?'Disparada':al.st==='pend'?'Pendiente':'Activa'}</span>
+          ${al.sent>0?`<span class="sent-tag">${svgSd}${al.sent} enviado${al.sent>1?'s':''}</span>`:''}
+        </div>
+      </div>
+      <div class="aact">
+        <button class="btn btn-r" onclick="fire(${al.id})" style="font-size:12px;padding:5px 10px">${svgSd} Insistir</button>
+        <label class="tsw" title="${al.on?'Pausar':'Activar'}"><input type="checkbox" ${al.on?'checked':''} onchange="tog(${al.id})"><span class="trk"></span></label>
+        <button onclick="delAlarm(${al.id})" title="Eliminar alarma" style="background:none;border:none;cursor:pointer;color:var(--t3);font-size:18px;padding:2px 4px;line-height:1;transition:color .1s" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--t3)'">×</button>
+      </div>
+    </div>`;
+  }).join('')||'<div class="empty">Sin alarmas. Crea una con el botón superior.</div>';
+}
+
+function fire(id){
+  const al=alarms.find(x=>x.id===id);
+  if(!al)return;
+  const task=tasks.find(t=>t.alarmId===id)||tasks.find(t=>t.t===al.t);
+  // Pre-llenar destinatarios con el email de la alarma
+  document.getElementById('pt-to-list').innerHTML=`<input type="email" class="pt-to" placeholder="destinatario@empresa.cl" style="width:100%" value="${al.e||''}">`;
+  document.getElementById('pt-cc-list').innerHTML=`<input type="email" class="pt-cc" placeholder="copia@empresa.cl (opcional)" style="width:100%">`;
+  document.getElementById('pt-tpl').value='insistencia';
+  document.getElementById('pt-send-status').style.display='none';
+  if(task){
+    document.getElementById('pt-tid').value=task.id;
+    changePlantillaTpl();
+  }else{
+    const fecha=al.d?new Date(al.d).toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'}):'';
+    const tpl=localStorage.getItem('pm_tpl2')||`Estimado/a ${al.a||'Responsable'},\n\nMe permito insistir respecto a la tarea "${al.t}" — proyecto ${al.c}.\n\nLa fecha comprometida fue ${fecha} y no hemos recibido confirmación de cierre.\n\nLe solicito responder en las próximas 24 horas.\n\nSaludos cordiales,\nBryan Pozo — Project Manager, Grupo Bios`;
+    document.getElementById('pt-asunto').value=`URGENTE: "${al.t}" sin respuesta — ${al.c}`;
+    document.getElementById('pt-cuerpo').value=tpl;
+    document.getElementById('pt-tid').value='';
+  }
+  al.sent++;al.st='fire';save();renderAlarms();
+  openModal('modal-plantilla');
+}
+function tog(id){const al=alarms.find(x=>x.id===id);if(al){al.on=!al.on;save();renderAlarms();toast(al.on?'Alarma activada':'Alarma pausada');}}
+function delAlarm(id){const al=alarms.find(x=>x.id===id);if(!al)return;if(!confirm('¿Eliminar alarma "'+al.t+'"?'))return;alarms=alarms.filter(x=>x.id!==id);save();document.getElementById('pill-a').textContent=alarms.length;renderAlarms();toast('Alarma eliminada');}
+
+// ─────────────────────────────────────────────────────────
+// ID de tu Google Sheet (fuente de verdad)
+// URL del Apps Script publicado como Web App
+// IMPORTANTE: Reemplaza esta URL con la tuya después de publicar el script
+let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || '';
+
+async function doSync(){
+  const btn=document.getElementById('sync-btn');
+  btn.disabled=true;btn.querySelector('span').textContent='Sincronizando...';
+
+  if(!APPS_SCRIPT_URL){
+    // Pedir la URL si no está configurada
+    const url = prompt('Pega aquí la URL de tu Apps Script publicado:\n(Apps Script → Implementar → Administrar implementaciones → URL)');
+    if(!url){ btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
+    APPS_SCRIPT_URL = url.trim();
+    localStorage.setItem('apps_script_url', APPS_SCRIPT_URL);
+  }
+
+  try{
+    const res  = await fetch(APPS_SCRIPT_URL);
+    const json = await res.json();
+
+    if(json.error){ toast('Error: '+json.error); btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
+    if(!json.tasks||!json.tasks.length){ toast('Sin tareas en la hoja'); btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
+
+    const sheetTasks = json.tasks.map(t=>({
+      id:       t.id,
+      t:        t.titulo||'(sin título)',
+      c:        t.cliente||'General',
+      tp:       t.tipo||'seguimiento',
+      a:        t.delegado||'—',
+      d:        parseFecha(t.vencimiento),
+      dn:       t.estado==='completado',
+      s:        t.snippet||'',
+      ha:       t.enviados>0,
+      sent:     t.enviados||0,
+      threadId: t.threadId  // Viene limpio como texto desde el script
+    }));
+
+    // Preservar estado completado del localStorage
+    const saved = JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
+    sheetTasks.forEach(t=>{
+      if(saved[t.threadId]==='completado') t.dn=true;
     });
 
-    registrarLog(log, 'INFO', `Tareas nuevas: ${agregadas}`);
-    verificarAlarmas(sheet, log);
+    tasks = sheetTasks;
+    nextT = tasks.length+1;
+    save();
+    render();
+    renderAlarms();
+    if(typeof donutChart!=='undefined'&&donutChart) initCharts();
 
-    const hora = new Date().getHours();
-    if (hora === 8) enviarResumenDiario(sheet, log);
+    const activas = tasks.filter(x=>!x.dn).length;
+    document.getElementById('sync-lbl').textContent=`Última sync: ${tn()} · ${json.total} correos · ${activas} activas`;
+    toast(`✓ ${activas} tareas cargadas`);
 
-    registrarLog(log, 'OK', '── Sincronización completada ──');
+  }catch(e){
+    toast('Error de conexión: '+e.message);
+    // Si falla, limpiar URL para que pida de nuevo
+    localStorage.removeItem('apps_script_url');
+    APPS_SCRIPT_URL='';
+    console.error(e);
+  }
+  btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';
+}
 
-  } catch(e) {
-    registrarLog(log, 'ERROR', `ERROR: ${e.message}`);
-    throw e;
+function parseFecha(s){
+  if(!s) return new Date(Date.now()+3*86400000).toISOString().split('T')[0];
+  const m = s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return s;
+}
+
+async function genEmail(){
+  const ac=tasks.filter(t=>!t.dn);
+  const u=ac.filter(t=>t.tp==='urgente').map(t=>`${t.t} (${t.c})`).join(', ')||'ninguna';
+  const h=ac.filter(t=>dl(t.d)===0).map(t=>`${t.t} (${t.c})`).join(', ')||'ninguna';
+  const m=ac.filter(t=>dl(t.d)===1).map(t=>`${t.t} (${t.c})`).join(', ')||'ninguna';
+  toast('Generando resumen con IA...');
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:600,system:'Eres asistente PM. Redacta correo de resumen diario ejecutivo en español, tono formal, sin markdown.',messages:[{role:'user',content:`Resumen PM — Grupo Bios. Fecha: ${new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'})}.\nUrgentes: ${u}\nVencen hoy: ${h}\nVencen mañana: ${m}\nTotal activas: ${ac.length}`}]})});
+    const data=await res.json();
+    const txt=data.content.filter(b=>b.type==='text').map(b=>b.text).join('');
+    document.getElementById('econtent').textContent=txt;
+    document.getElementById('eprev').style.display='block';
+    toast('Resumen generado');
+  }catch(e){toast('Error: '+e.message);}
+}
+
+function saveTpl(tipo){
+  if(tipo==='recordatorio'){
+    localStorage.setItem('pm_tpl1',document.getElementById('tb1').value);
+  }else{
+    localStorage.setItem('pm_tpl2',document.getElementById('tb2').value);
+  }
+  toast('Plantilla guardada ✓');
+}
+function loadTpls(){
+  const t1=localStorage.getItem('pm_tpl1');
+  const t2=localStorage.getItem('pm_tpl2');
+  if(t1&&document.getElementById('tb1'))document.getElementById('tb1').value=t1;
+  if(t2&&document.getElementById('tb2'))document.getElementById('tb2').value=t2;
+}
+
+let donutChart=null,barChart=null,lineChart=null;
+function initCharts(){
+  const ac=tasks.filter(t=>!t.dn);
+  const u=ac.filter(t=>t.tp==='urgente').length;
+  const d=ac.filter(t=>t.tp==='delegado').length;
+  const s=ac.filter(t=>t.tp==='seguimiento').length;
+
+  // Leyenda dinámica
+  const lg=document.getElementById('donut-legend');
+  if(lg)lg.innerHTML=`<span class="li"><span class="lsq" style="background:#FF4D00"></span>Urgente ${u}</span><span class="li"><span class="lsq" style="background:#1A1A1A"></span>Delegado ${d}</span><span class="li"><span class="lsq" style="background:#888880"></span>Seguimiento ${s}</span>`;
+
+  // Estado general dinámico
+  if(document.getElementById('sg-urg'))document.getElementById('sg-urg').textContent=u;
+  if(document.getElementById('sg-del'))document.getElementById('sg-del').textContent=d;
+  if(document.getElementById('sg-tot'))document.getElementById('sg-tot').textContent=ac.length;
+  if(document.getElementById('sg-ins'))document.getElementById('sg-ins').textContent=alarms.reduce((x,a)=>x+(a.sent||0),0);
+
+  // Datos por proyecto
+  const byClient={};
+  ac.forEach(t=>{byClient[t.c]=(byClient[t.c]||0)+1;});
+  const sorted=Object.entries(byClient).sort((a,b)=>b[1]-a[1]).slice(0,7);
+
+  if(donutChart)donutChart.destroy();
+  donutChart=new Chart(document.getElementById('cd'),{type:'doughnut',data:{labels:['Urgente','Delegado','Seguimiento'],datasets:[{data:[u,d,s],backgroundColor:['#FF4D00','#1A1A1A','#888880'],borderWidth:3,borderColor:'#F5F0E8'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'62%'}});
+
+  if(barChart)barChart.destroy();
+  barChart=new Chart(document.getElementById('cb'),{type:'bar',data:{labels:sorted.map(x=>x[0].length>10?x[0].slice(0,10)+'…':x[0]),datasets:[{data:sorted.map(x=>x[1]),backgroundColor:sorted.map(x=>cc(x[0])),borderRadius:5,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+
+  if(lineChart)lineChart.destroy();
+  lineChart=new Chart(document.getElementById('cl'),{type:'line',data:{labels:['Lun','Mar','Mié','Jue','Vie'],datasets:[{label:'Alarmas',data:[1,0,2,3,1],borderColor:'#FF4D00',backgroundColor:'rgba(255,77,0,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#FF4D00',pointBorderColor:'#F5F0E8',pointBorderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false},ticks:{font:{size:11}}}}}});
+}
+
+let toastT;
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2800);}
+
+document.getElementById('rdate').textContent=new Date().toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+const nd=new Date();nd.setDate(nd.getDate()+3);
+document.getElementById('nt-d').value=nd.toISOString().split('T')[0];
+const nd2=new Date();nd2.setDate(nd2.getDate()+1);
+document.getElementById('na-d').value=nd2.toISOString().split('T')[0];
+
+function setGmailAccount(idx){
+  localStorage.setItem('gmail_account_index', idx);
+  toast(`Cuenta Gmail configurada como índice ${idx}`);
+}
+
+function probarCuenta(){
+  const idx = localStorage.getItem('gmail_account_index') || '1';
+  window.open(`https://mail.google.com/mail/u/${idx}/`, '_blank');
+  toast(`Abriendo cuenta Gmail u/${idx}`);
+}
+
+function configurarURL(){
+  const saved=localStorage.getItem('apps_script_url')||'';
+  document.getElementById('modal-as-url').value=saved;
+  const st=document.getElementById('modal-as-status');
+  st.textContent=saved?'✓ URL actual cargada — puedes reemplazarla':'Sin URL configurada';
+  st.style.color=saved?'#1B5E20':'var(--t3)';
+  openModal('modal-config-url');
+}
+
+function saveAppsScriptUrl(){
+  const val=document.getElementById('as-url-input').value.trim();
+  const st=document.getElementById('as-url-status');
+  if(!val||!val.includes('script.google.com')){
+    document.getElementById('as-url-input').style.borderColor='#FF4D00';
+    if(st){st.textContent='⚠ La URL debe ser de script.google.com y terminar en /exec';st.style.color='#FF4D00';}
+    return;
+  }
+  localStorage.setItem('apps_script_url',val);
+  APPS_SCRIPT_URL=val;
+  if(st){st.textContent='✓ URL guardada correctamente';st.style.color='#1B5E20';}
+  toast('URL del Apps Script guardada ✓');
+}
+
+function guardarURLModal(){
+  const val=document.getElementById('modal-as-url').value.trim();
+  const st=document.getElementById('modal-as-status');
+  if(!val){st.textContent='⚠ Pega la URL antes de guardar';st.style.color='#FF4D00';return;}
+  if(!val.includes('script.google.com')||!val.includes('/exec')){
+    st.textContent='⚠ La URL debe ser de script.google.com y terminar en /exec';
+    st.style.color='#FF4D00';return;
+  }
+  localStorage.setItem('apps_script_url',val);
+  APPS_SCRIPT_URL=val;
+  const inp=document.getElementById('as-url-input');
+  if(inp)inp.value=val;
+  const ast=document.getElementById('as-url-status');
+  if(ast){ast.textContent='✓ URL configurada';ast.style.color='#1B5E20';}
+  closeModal('modal-config-url');
+  toast('✓ URL del Apps Script guardada');
+}
+
+function loadAppsScriptUrlField(){
+  const saved=localStorage.getItem('apps_script_url')||'';
+  const inp=document.getElementById('as-url-input');
+  const st=document.getElementById('as-url-status');
+  if(inp){
+    inp.value=saved;
+    if(saved){st.textContent='✓ URL configurada';st.style.color='#1B5E20';}
+    else{st.textContent='Sin configurar — pega tu URL del Apps Script aquí';st.style.color='var(--t3)';}
   }
 }
 
-// ─── LEER CORREOS POR ETIQUETA (usando GmailLabel) ───────────
-function leerCorreosEtiquetados(log) {
-  const tareas = [];
-
-  CONFIG.LABELS.forEach(({ nombre, tipo }) => {
-    try {
-      // GmailApp.getUserLabelByName busca la etiqueta por nombre exacto
-      const label = GmailApp.getUserLabelByName(nombre);
-
-      if (!label) {
-        registrarLog(log, 'WARN', `Etiqueta no encontrada: "${nombre}" — verifica el nombre exacto en Gmail`);
-        return;
-      }
-
-      const threads = label.getThreads(0, 50);
-      registrarLog(log, 'INFO', `"${nombre}": ${threads.length} hilos encontrados`);
-
-      threads.forEach(thread => {
-        const msg    = thread.getMessages()[0];
-        const asunto = msg.getSubject() || '(sin asunto)';
-        const de     = msg.getFrom();
-        const fecha  = calcularFechaVencimiento(tipo);
-
-        tareas.push({
-          threadId:         thread.getId(),
-          titulo:           asunto,
-          cliente:          extraerCliente(asunto, de),
-          tipo:             tipo,
-          delegado:         extraerDelegado(de, tipo),
-          emailDelegado:    extraerEmail(de),
-          fechaVencimiento: fecha,
-          fechaCreacion:    new Date().toLocaleDateString('es-CL'),
-          estado:           'pendiente',
-          enviados:         0,
-          snippet:          msg.getPlainBody().substring(0, 150).replace(/\n/g, ' ')
-        });
-      });
-
-    } catch(e) {
-      registrarLog(log, 'ERROR', `Error en etiqueta "${nombre}": ${e.message}`);
-    }
-  });
-
-  return tareas;
-}
-
-// ─── HOJA DE CÁLCULO ─────────────────────────────────────────
-function obtenerOCrearHoja(ss, nombre) {
-  let hoja = ss.getSheetByName(nombre);
-  if (!hoja) {
-    hoja = ss.insertSheet(nombre);
-    if (nombre === 'Tareas') {
-      const h = ['ID Thread','Título','Cliente','Tipo','Delegado',
-                 'Email Delegado','Fecha Vencimiento','Fecha Creación',
-                 'Estado','Correos Enviados','Snippet'];
-      hoja.getRange(1,1,1,h.length).setValues([h]).setFontWeight('bold');
-      hoja.setFrozenRows(1);
-      [180,300,150,100,150,200,130,120,100,80,300].forEach((w,i)=>hoja.setColumnWidth(i+1,w));
-    }
-    if (nombre === 'Log') {
-      hoja.getRange(1,1,1,3).setValues([['Timestamp','Tipo','Mensaje']]).setFontWeight('bold');
-      hoja.setFrozenRows(1);
-    }
-  }
-  return hoja;
-}
-
-function cargarTareasExistentes(sheet) {
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  return data.slice(1).map(row => ({ threadId: String(row[0]) }));
-}
-
-function agregarTarea(sheet, t) {
-  const fila = sheet.appendRow([
-    "'"+t.threadId, // Comilla simple fuerza formato texto en Sheets
-    t.titulo, t.cliente, t.tipo, t.delegado,
-    t.emailDelegado, t.fechaVencimiento, t.fechaCreacion,
-    t.estado, t.enviados, t.snippet
-  ]);
-  // Asegurar que la columna A sea texto plano
-  const lastRow = sheet.getLastRow();
-  sheet.getRange(lastRow, 1).setNumberFormat('@');
-}
-
-// ─── ALARMAS ─────────────────────────────────────────────────
-function verificarAlarmas(sheet, log) {
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return;
-
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-
-  for (let i = 1; i < data.length; i++) {
-    const row    = data[i];
-    if (String(row[8]) === 'completado') continue;
-
-    const emailDelegado = String(row[5]);
-    if (!emailDelegado || !emailDelegado.includes('@')) continue;
-
-    const fechaVenc = new Date(row[6]); fechaVenc.setHours(0,0,0,0);
-    const dias      = Math.round((fechaVenc - hoy) / 86400000);
-    const enviados  = parseInt(row[9]) || 0;
-    const titulo    = String(row[1]);
-    const cliente   = String(row[2]);
-    const delegado  = String(row[4]);
-
-    // Recordatorio: SOLO si vence mañana Y nunca se ha enviado
-    if (dias === 1 && enviados === 0) {
-      const a = rellenarPlantilla(CONFIG.ASUNTO_RECORDATORIO, titulo, cliente, delegado, row[6]);
-      const c = rellenarPlantilla(CONFIG.CUERPO_RECORDATORIO, titulo, cliente, delegado, row[6]);
-      GmailApp.sendEmail(CONFIG.PM_EMAIL, a, c);
-      sheet.getRange(i+1, 10).setValue(1); // Marcar como enviado
-      registrarLog(log, 'OK', `📧 Recordatorio → PM: "${titulo}"`);
-    }
-
-    // Insistencia: SOLO si ya venció (dias < 0), ya se envió recordatorio,
-    // y el contador de enviados coincide exactamente con los días transcurridos / 2
-    // Esto garantiza máximo 1 insistencia cada 2 días
-    if (dias < 0 && enviados >= 1) {
-      const diasVencida = Math.abs(dias);
-      // Solo enviar en días pares de vencimiento (día 2, 4, 6...) y si el contador coincide
-      if (diasVencida % 2 === 0 && enviados === Math.floor(diasVencida / 2)) {
-        const a = rellenarPlantilla(CONFIG.ASUNTO_INSISTENCIA, titulo, cliente, delegado, row[6]);
-        const c = rellenarPlantilla(CONFIG.CUERPO_INSISTENCIA, titulo, cliente, delegado, row[6]);
-        GmailApp.sendEmail(CONFIG.PM_EMAIL, a, c);
-        sheet.getRange(i+1, 10).setValue(enviados + 1);
-        registrarLog(log, 'WARN', `⚠️ Insistencia #${enviados+1} → PM: "${titulo}"`);
-      }
-    }
-  }
-}
-
-// ─── RESUMEN DIARIO ──────────────────────────────────────────
-function enviarResumenDiario(sheet, log) {
-  const data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return;
-  const hoy  = new Date(); hoy.setHours(0,0,0,0);
-  const p    = data.slice(1).filter(r=>r[8]!=='completado');
-  const urg  = p.filter(r=>r[3]==='urgente');
-  const hoyL = p.filter(r=>{const d=new Date(r[6]);d.setHours(0,0,0,0);return Math.round((d-hoy)/86400000)===0;});
-  const manL = p.filter(r=>{const d=new Date(r[6]);d.setHours(0,0,0,0);return Math.round((d-hoy)/86400000)===1;});
-  const del  = p.filter(r=>r[3]==='delegado');
-  const fs   = hoy.toLocaleDateString('es-CL',{weekday:'long',day:'numeric',month:'long'});
-
-  GmailApp.sendEmail(CONFIG.PM_EMAIL,
-    `📋 Resumen PM — ${urg.length} urgentes · ${hoyL.length} vencen hoy · ${fs}`,
-    `RESUMEN DIARIO — ${fs.toUpperCase()}\nGrupo Bios\n${'─'.repeat(40)}\n\n` +
-    `📋 Total activas: ${p.length}\n🔴 Urgentes: ${urg.length}\n📅 Hoy: ${hoyL.length}\n⏰ Mañana: ${manL.length}\n👤 Delegadas: ${del.length}\n\n` +
-    `${'─'.repeat(40)}\n🔴 URGENTES:\n${urg.length?urg.map(r=>`  • ${r[1]} — ${r[2]}`).join('\n'):'  Ninguna'}\n\n` +
-    `📅 VENCEN HOY:\n${hoyL.length?hoyL.map(r=>`  • ${r[1]} — ${r[2]}`).join('\n'):'  Ninguna'}`
-  );
-  registrarLog(log, 'OK', `📧 Resumen enviado a ${CONFIG.PM_EMAIL}`);
-}
-
-// ─── UTILIDADES ──────────────────────────────────────────────
-function rellenarPlantilla(pl, tarea, cliente, delegado, fecha) {
-  const fs = new Date(fecha).toLocaleDateString('es-CL',{day:'numeric',month:'long',year:'numeric'});
-  return pl.replace(/{tarea}/g,tarea).replace(/{cliente}/g,cliente)
-           .replace(/{delegado}/g,delegado).replace(/{fecha}/g,fs)
-           .replace(/{pm_nombre}/g,CONFIG.PM_NOMBRE).replace(/{pm_cargo}/g,CONFIG.PM_CARGO);
-}
-function extraerEmail(from) { const m=from.match(/<([^>]+)>/); return m?m[1]:from.trim(); }
-function extraerCliente(asunto, from) {
-  const p=['TrackCare','TORAX','Siemens','BiosLIS','CRS','Biodata','Myla','PUC',
-           'San Fernando','Eniax','Unity','Macul','Bios','RRHH','HHM','Oficina'];
-  for(const x of p) if(asunto.toLowerCase().includes(x.toLowerCase())) return x;
-  const m=from.match(/@([^.>]+)/);
-  return m?m[1].charAt(0).toUpperCase()+m[1].slice(1):'General';
-}
-function extraerDelegado(from, tipo) {
-  if(tipo!=='delegado') return CONFIG.PM_NOMBRE;
-  const m=from.match(/^"?([^"<]+)"?\s*</);
-  return m?m[1].trim():'—';
-}
-function calcularFechaVencimiento(tipo) {
-  const d=new Date();
-  d.setDate(d.getDate()+(tipo==='urgente'?1:tipo==='seguimiento'?3:5));
-  return d.toLocaleDateString('es-CL');
-}
-function registrarLog(logSheet, tipo, msg) {
-  if(!logSheet) return;
-  logSheet.appendRow([new Date().toLocaleString('es-CL'), tipo, msg]);
-  console.log(`[${tipo}] ${msg}`);
-}
-
-// ─── DIAGNÓSTICO ─────────────────────────────────────────────
-function diagnostico() {
-  const ss  = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const log = obtenerOCrearHoja(ss, 'Log');
-  registrarLog(log, 'INFO', '══ DIAGNÓSTICO INICIO ══');
-
-  CONFIG.LABELS.forEach(({nombre}) => {
-    const label = GmailApp.getUserLabelByName(nombre);
-    if (!label) {
-      registrarLog(log, 'WARN', `❌ NO ENCONTRADA: "${nombre}"`);
-    } else {
-      const threads = label.getThreads(0, 10);
-      registrarLog(log, 'OK', `✓ ENCONTRADA: "${nombre}" → ${threads.length} hilos`);
-      threads.forEach(t => {
-        registrarLog(log, 'INFO', `  · "${t.getMessages()[0].getSubject()}"`);
-      });
-    }
-  });
-
-  // Listar TODAS las etiquetas del usuario
-  const allLabels = GmailApp.getUserLabels();
-  registrarLog(log, 'INFO', `Total etiquetas en Gmail: ${allLabels.length}`);
-  allLabels.forEach(l => registrarLog(log, 'INFO', `  · "${l.getName()}"`));
-
-  registrarLog(log, 'INFO', '══ DIAGNÓSTICO FIN ══');
-  SpreadsheetApp.getUi().alert('Listo. Revisa la pestaña Log — verás todas tus etiquetas listadas.');
-}
-
-// ─── MENÚ ────────────────────────────────────────────────────
-function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu('📋 PM Dashboard')
-    .addItem('🔄 Sincronizar Gmail',          'syncGmailToDashboard')
-    .addItem('🔍 Diagnóstico de etiquetas',   'diagnostico')
-    .addItem('✅ Marcar fila completada',      'marcarCompletada')
-    .addItem('📧 Enviar resumen ahora',        'enviarResumenManual')
-    .addItem('🔧 Corregir IDs de correo',     'corregirThreadIds')
-    .addItem('🔢 Resetear contadores',        'resetearContadores')
-    .addToUi();
-}
-
-// Resetea el contador de enviados a 0 en todas las tareas pendientes
-// Ejecutar UNA VEZ después del incidente de spam
-function resetearContadores() {
-  const ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const sheet = ss.getSheetByName('Tareas');
-  if (!sheet) { SpreadsheetApp.getUi().alert('No existe la hoja Tareas.'); return; }
-  const data  = sheet.getDataRange().getValues();
-  let count   = 0;
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][8]) !== 'completado') {
-      sheet.getRange(i+1, 10).setValue(0);
-      count++;
-    }
-  }
-  SpreadsheetApp.getUi().alert(`✓ Contadores reseteados en ${count} tareas.`);
-}
-
-function marcarCompletada() {
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Tareas');
-  const fila  = sheet.getActiveCell().getRow();
-  if (fila<=1){SpreadsheetApp.getUi().alert('Selecciona una fila de tarea.');return;}
-  sheet.getRange(fila,9).setValue('completado');
-  SpreadsheetApp.getUi().alert('✅ Completada.');
-}
-function enviarResumenManual() {
-  const ss=SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const sh=obtenerOCrearHoja(ss,'Tareas'), lg=obtenerOCrearHoja(ss,'Log');
-  enviarResumenDiario(sh,lg);
-  SpreadsheetApp.getUi().alert('📧 Resumen enviado a '+CONFIG.PM_EMAIL);
-}
-
-// ─── CORREGIR THREADIDS EXISTENTES EN LA SHEET ───────────────
-// Ejecuta esta función UNA VEZ para limpiar los IDs ya guardados
-function corregirThreadIds() {
-  const ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const sheet = ss.getSheetByName('Tareas');
-  if (!sheet) { SpreadsheetApp.getUi().alert('No existe la hoja Tareas.'); return; }
-
-  const data = sheet.getDataRange().getValues();
-  let corregidos = 0;
-
-  for (let i = 1; i < data.length; i++) {
-    const celda = sheet.getRange(i+1, 1);
-    const val   = String(data[i][0]).replace(/^'+/, ''); // quitar comillas previas
-
-    // Forzar como texto plano
-    celda.setNumberFormat('@');
-    celda.setValue(val);
-    corregidos++;
-  }
-
-  SpreadsheetApp.getUi().alert(`✓ ${corregidos} threadIDs corregidos a formato texto.`);
-}
-
-// ─── ENDPOINT WEB (doGet) ─────────────────────────────────────
-// Publica los datos de la Sheet como JSON para el dashboard
-// Desplegar como: Implementar → Nueva implementación → Aplicación web
-// Ejecutar como: Yo (bryan.pozo@grupobios.cl)
-// Acceso: Cualquier usuario (anónimo)
-function doGet(e) {
-  try {
-    const action = e && e.parameter && e.parameter.action;
-
-    // ── Marcar tarea como completada desde el dashboard ──
-    if (action === 'completar') {
-      const threadId = (e.parameter.threadId || '').trim();
-      const token    = (e.parameter.token    || '').trim();
-      if (!threadId) return jsonResponse({ ok: false, error: 'Falta threadId' });
-      if (token !== CONFIG.SECRET_TOKEN) return jsonResponse({ ok: false, error: 'Token inválido' });
-
-      const ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-      const sheet = ss.getSheetByName('Tareas');
-      if (!sheet) return jsonResponse({ ok: false, error: 'Hoja no encontrada' });
-
-      const data = sheet.getDataRange().getValues();
-      let updated = false;
-      for (let i = 1; i < data.length; i++) {
-        const tid = String(data[i][0]).replace(/^'+/, '').trim();
-        if (tid === threadId) {
-          sheet.getRange(i + 1, 9).setValue('completado');
-          updated = true;
-          break;
-        }
-      }
-      const log = obtenerOCrearHoja(ss, 'Log');
-      registrarLog(log, updated ? 'OK' : 'WARN',
-        updated ? `✅ Completada desde dashboard: ${threadId}` : `⚠ ThreadId no encontrado: ${threadId}`);
-      return jsonResponse({ ok: updated, threadId });
-    }
-
-    // ── Envío de correo desde el dashboard ──
-    if (action === 'sendEmail') {
-      const toRaw  = (e.parameter.to  || '').split('|').map(s=>s.trim()).filter(Boolean);
-      const ccRaw  = (e.parameter.cc  || '').split('|').map(s=>s.trim()).filter(Boolean);
-      const subject = e.parameter.subject || '';
-      const body    = e.parameter.body    || '';
-
-      if (!toRaw.length || !subject || !body) {
-        return jsonResponse({ ok: false, error: 'Faltan parámetros: to, subject, body' });
-      }
-
-      const options = {
-        htmlBody: body.replace(/\n/g, '<br>'),
-        name: CONFIG.PM_NOMBRE + ' — ' + CONFIG.PM_CARGO
-      };
-      if (ccRaw.length) options.cc = ccRaw.join(',');
-
-      GmailApp.sendEmail(toRaw.join(','), subject, body, options);
-
-      const ss2  = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-      const log2 = obtenerOCrearHoja(ss2, 'Log');
-      registrarLog(log2, 'CORREO', `📨 Enviado a ${toRaw.join(', ')}${ccRaw.length?' (CC: '+ccRaw.join(', ')+')':''}: "${subject}"`);
-
-      return jsonResponse({ ok: true, sent: toRaw.join(',') });
-    }
-
-    // ── Lectura de tareas (comportamiento por defecto) ──
-    const ss    = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-    const sheet = ss.getSheetByName('Tareas');
-    if (!sheet) return jsonResponse({ error: 'Hoja Tareas no encontrada' });
-
-    const data  = sheet.getDataRange().getValues();
-    if (data.length <= 1) return jsonResponse({ tasks: [] });
-
-    const tasks = data.slice(1)
-      .filter(row => String(row[0]).trim() !== '')
-      .map((row, i) => ({
-        id:          i + 1,
-        threadId:    String(row[0]).replace(/^'+/, '').trim(),
-        titulo:      String(row[1] || ''),
-        cliente:     String(row[2] || 'General'),
-        tipo:        String(row[3] || 'seguimiento'),
-        delegado:    String(row[4] || ''),
-        email:       String(row[5] || ''),
-        vencimiento: String(row[6] || ''),
-        creacion:    String(row[7] || ''),
-        estado:      String(row[8] || 'pendiente'),
-        enviados:    parseInt(row[9]) || 0,
-        snippet:     String(row[10] || '')
-      }));
-
-    return jsonResponse({ tasks, total: tasks.length, sync: new Date().toLocaleString('es-CL') });
-
-  } catch(err) {
-    return jsonResponse({ error: err.message });
-  }
-}
-
-// ─── ENVÍO DE CORREO DESDE EL DASHBOARD (POST de formulario) ─
-function doPost(e) {
-  try {
-    // El formulario llega como application/x-www-form-urlencoded
-    const action  = e.parameter.action || '';
-
-    if (action === 'sendEmail') {
-      const toRaw   = (e.parameter.to  || '').split('|').map(s=>s.trim()).filter(Boolean);
-      const ccRaw   = (e.parameter.cc  || '').split('|').map(s=>s.trim()).filter(Boolean);
-      const subject = e.parameter.subject || '';
-      const body    = e.parameter.body    || '';
-
-      if (!toRaw.length || !subject || !body) {
-        return jsonResponse({ ok: false, error: 'Faltan campos: to, subject o body' });
-      }
-
-      const options = {
-        htmlBody: body.replace(/\n/g, '<br>'),
-        name:     CONFIG.PM_NOMBRE + ' — ' + CONFIG.PM_CARGO
-      };
-      if (ccRaw.length) options.cc = ccRaw.join(',');
-
-      GmailApp.sendEmail(toRaw.join(','), subject, body, options);
-
-      // Registrar en Log
-      const ss  = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-      const log = obtenerOCrearHoja(ss, 'Log');
-      registrarLog(log, 'CORREO', `📨 Enviado a ${toRaw.join(', ')}${ccRaw.length?' (CC: '+ccRaw.join(', ')+')':''}: "${subject}"`);
-
-      return jsonResponse({ ok: true, sent: toRaw.join(',') });
-    }
-
-    return jsonResponse({ ok: false, error: 'Acción no reconocida: ' + action });
-
-  } catch(err) {
-    return jsonResponse({ ok: false, error: err.message });
-  }
-}
-
-function jsonResponse(data) {
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-// Respuesta con CORS habilitado para peticiones del dashboard
-function corsResponse(data) {
-  const output = ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-  return output;
-}
+render();renderAlarms();loadTpls();loadAppsScriptUrlField();
+setTimeout(initCharts,150);
+// Restaurar índice de cuenta Gmail guardado
+const savedIdx = localStorage.getItem('gmail_account_index') || '1';
+const idxSel = document.getElementById('gmail-idx');
+if(idxSel) idxSel.value = savedIdx;
+</script>
+</body>
+</html>
