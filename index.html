@@ -843,8 +843,9 @@ function actualizarEstadoSheet(threadId){
   const url=localStorage.getItem('apps_script_url');
   if(!url)return;
   const sendUrl=`${url}?action=completar&threadId=${encodeURIComponent(threadId)}`;
-  // fetch no-cors: petición completamente invisible, sin ventana, sin redirección visible
-  fetch(sendUrl,{method:'GET',mode:'no-cors',credentials:'include'}).catch(()=>{});
+  // Abrir ventana mínima — se cierra sola en 2s
+  const w=window.open(sendUrl,'_pm_done','width=1,height=1,left=-100,top=-100');
+  if(w)setTimeout(()=>{try{w.close();}catch(e){}},2000);
 }
 function del(id){tasks=tasks.filter(x=>x.id!==id);save();render();toast('Tarea eliminada');}
 
