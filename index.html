@@ -429,13 +429,13 @@ Bryan Pozo — Project Manager, Grupo Bios</textarea>
     <div class="ct" style="margin-bottom:.875rem">Cuenta Gmail</div>
     <div style="display:flex;align-items:center;gap:12px;padding:.75rem;background:var(--bg);border-radius:var(--r)">
       <div style="width:40px;height:40px;border-radius:50%;background:var(--blue-bg);color:var(--blue);font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center">BP</div>
-      <div><div style="font-size:13px;font-weight:500">Bryan Pozo</div><div style="font-size:11px;color:var(--t3)">bryan.pozo@grupobios.cl · <span style="color:var(--green)">Conectado</span></div></div>
+      <div><div style="font-size:13px;font-weight:500">Bryan Pozo</div><div style="font-size:11px;color:var(--t3)">Grupo Bios · <span style="color:var(--green)">Conectado</span></div></div>
       <button class="btn" style="margin-left:auto;font-size:12px">Cambiar cuenta</button>
     </div>
     <div class="srow" style="margin-top:.75rem">
       <div>
         <div class="sl">Índice de cuenta Gmail</div>
-        <div class="ss">Si el botón "Ver correo" abre la cuenta incorrecta, prueba 1, 2, 3... hasta dar con la correcta (bryan.pozo@grupobios.cl)</div>
+        <div class="ss">Si el botón "Ver correo" abre la cuenta incorrecta, prueba 0, 1, 2... hasta dar con la cuenta correcta de trabajo</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <select id="gmail-idx" onchange="setGmailAccount(this.value)" style="width:70px;font-size:13px">
@@ -580,10 +580,14 @@ Bryan Pozo — Project Manager, Grupo Bios</textarea>
 <div id="modal-config-url" class="modal-bg" onclick="if(event.target===this)closeModal('modal-config-url')">
   <div class="modal-box" style="max-width:520px">
     <div class="modal-title">Configurar Apps Script</div>
-    <div class="ss" style="margin-bottom:1rem">Pega aquí la URL de tu Web App publicado en Google Apps Script. Debe terminar en <code style="background:var(--bg);padding:2px 5px;border-radius:3px">/exec</code></div>
+    <div class="ss" style="margin-bottom:1rem">Ingresa la URL y el token de seguridad. Estos datos se guardan solo en tu navegador — nunca en el código.</div>
     <div class="field">
       <label>URL del Apps Script</label>
       <input type="text" id="modal-as-url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;font-size:12px;font-family:monospace">
+    </div>
+    <div class="field">
+      <label>Token de seguridad</label>
+      <input type="password" id="modal-as-token" placeholder="Token configurado en tu Apps Script" style="width:100%">
     </div>
     <div id="modal-as-status" style="font-size:12px;margin-top:4px;min-height:18px"></div>
     <div class="modal-footer">
@@ -857,7 +861,7 @@ function actualizarEstadoSheet(threadId){
   form.target=ifrId;
   form.style.display='none';
 
-  [['action','completar'],['threadId',threadId],['token','gbios2026pm']].forEach(([k,v])=>{
+  [['action','completar'],['threadId',threadId],['token',localStorage.getItem('pm_token')||'']].forEach(([k,v])=>{
     const inp=document.createElement('input');
     inp.type='hidden';inp.name=k;inp.value=v;
     form.appendChild(inp);
@@ -1124,17 +1128,19 @@ function fire(id){
 function tog(id){const al=alarms.find(x=>x.id===id);if(al){al.on=!al.on;save();renderAlarms();toast(al.on?'Alarma activada':'Alarma pausada');}}
 function delAlarm(id){const al=alarms.find(x=>x.id===id);if(!al)return;if(!confirm('¿Eliminar alarma "'+al.t+'"?'))return;alarms=alarms.filter(x=>x.id!==id);save();document.getElementById('pill-a').textContent=alarms.length;renderAlarms();toast('Alarma eliminada');}
 
-// URL del Apps Script — pre-cargada para no depender del localStorage
-const APPS_SCRIPT_DEFAULT = 'https://script.google.com/macros/s/AKfycbxoYZwYrZ3htEpvI86yyd1HWBjSGBgBFYU9q6BTo7pZpdOcSwCHR-UY2tgSdxGb98ypRQ/exec';
-let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || APPS_SCRIPT_DEFAULT;
+// URL del Apps Script — nunca hardcodeada, solo desde localStorage
+// El usuario debe configurarla desde ⚙ Configurar Apps Script en el sidebar
+let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || '';
 
 async function doSync(){
   const btn=document.getElementById('sync-btn');
   btn.disabled=true;btn.querySelector('span').textContent='Sincronizando...';
 
   if(!APPS_SCRIPT_URL){
-    APPS_SCRIPT_URL=APPS_SCRIPT_DEFAULT;
-    localStorage.setItem('apps_script_url',APPS_SCRIPT_URL);
+    toast('⚙ Configura primero la URL del Apps Script');
+    configurarURL();
+    btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';
+    return;
   }
 
   try{
@@ -1276,9 +1282,11 @@ function probarCuenta(){
 
 function configurarURL(){
   const saved=localStorage.getItem('apps_script_url')||'';
+  const savedToken=localStorage.getItem('pm_token')||'';
   document.getElementById('modal-as-url').value=saved;
+  document.getElementById('modal-as-token').value=savedToken;
   const st=document.getElementById('modal-as-status');
-  st.textContent=saved?'✓ URL actual cargada — puedes reemplazarla':'Sin URL configurada';
+  st.textContent=saved?'✓ Configuración actual cargada':'Sin configurar — ingresa URL y token';
   st.style.color=saved?'#1B5E20':'var(--t3)';
   openModal('modal-config-url');
 }
@@ -1293,26 +1301,29 @@ function saveAppsScriptUrl(){
   }
   localStorage.setItem('apps_script_url',val);
   APPS_SCRIPT_URL=val;
-  if(st){st.textContent='✓ URL guardada correctamente';st.style.color='#1B5E20';}
-  toast('URL del Apps Script guardada ✓');
+  if(st){st.textContent='✓ URL guardada';st.style.color='#1B5E20';}
+  toast('URL guardada ✓');
 }
 
 function guardarURLModal(){
   const val=document.getElementById('modal-as-url').value.trim();
+  const token=document.getElementById('modal-as-token').value.trim();
   const st=document.getElementById('modal-as-status');
   if(!val){st.textContent='⚠ Pega la URL antes de guardar';st.style.color='#FF4D00';return;}
   if(!val.includes('script.google.com')||!val.includes('/exec')){
     st.textContent='⚠ La URL debe ser de script.google.com y terminar en /exec';
     st.style.color='#FF4D00';return;
   }
+  if(!token){st.textContent='⚠ Ingresa el token de seguridad';st.style.color='#FF4D00';return;}
   localStorage.setItem('apps_script_url',val);
+  localStorage.setItem('pm_token',token);
   APPS_SCRIPT_URL=val;
   const inp=document.getElementById('as-url-input');
   if(inp)inp.value=val;
   const ast=document.getElementById('as-url-status');
-  if(ast){ast.textContent='✓ URL configurada';ast.style.color='#1B5E20';}
+  if(ast){ast.textContent='✓ URL y token configurados';ast.style.color='#1B5E20';}
   closeModal('modal-config-url');
-  toast('✓ URL del Apps Script guardada');
+  toast('✓ Configuración guardada de forma segura');
 }
 
 function loadAppsScriptUrlField(){
@@ -1321,8 +1332,10 @@ function loadAppsScriptUrlField(){
   const st=document.getElementById('as-url-status');
   if(inp){
     inp.value=saved;
-    if(saved){st.textContent='✓ URL configurada';st.style.color='#1B5E20';}
-    else{st.textContent='Sin configurar — pega tu URL del Apps Script aquí';st.style.color='var(--t3)';}
+    const hasToken=!!localStorage.getItem('pm_token');
+    if(saved&&hasToken){st.textContent='✓ URL y token configurados';st.style.color='#1B5E20';}
+    else if(saved){st.textContent='⚠ URL configurada pero falta el token';st.style.color='#FF4D00';}
+    else{st.textContent='Sin configurar — usa ⚙ Configurar Apps Script';st.style.color='var(--t3)';}
   }
 }
 
