@@ -1133,65 +1133,46 @@ async function doSync(){
   btn.disabled=true;btn.querySelector('span').textContent='Sincronizando...';
 
   if(!APPS_SCRIPT_URL){
-    APPS_SCRIPT_URL = APPS_SCRIPT_DEFAULT;
-    localStorage.setItem('apps_script_url', APPS_SCRIPT_URL);
+    APPS_SCRIPT_URL=APPS_SCRIPT_DEFAULT;
+    localStorage.setItem('apps_script_url',APPS_SCRIPT_URL);
   }
 
   try{
-    // 1. Primero enviar estados completados pendientes a la Sheet
-    const saved = JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
-    const completados = Object.entries(saved).filter(([,v])=>v==='completado').map(([k])=>k);
-    if(completados.length){
-      btn.querySelector('span').textContent='Actualizando estados...';
-      for(const tid of completados){
-        try{
-          await fetch(`${APPS_SCRIPT_URL}?action=completar&threadId=${encodeURIComponent(tid)}&token=gbios2026pm`);
-        }catch(e){}
-      }
-    }
+    const res=await fetch(APPS_SCRIPT_URL);
+    const json=await res.json();
 
-    // 2. Luego traer tareas actualizadas
-    btn.querySelector('span').textContent='Sincronizando...';
-    const res  = await fetch(APPS_SCRIPT_URL);
-    const json = await res.json();
+    if(json.error){toast('Error: '+json.error);btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return;}
+    if(!json.tasks||!json.tasks.length){toast('Sin tareas en la hoja');btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return;}
 
-    if(json.error){ toast('Error: '+json.error); btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
-    if(!json.tasks||!json.tasks.length){ toast('Sin tareas en la hoja'); btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
+    // Estados guardados localmente (completados/eliminados por el usuario)
+    const saved=JSON.parse(localStorage.getItem('pm_tasks_state')||'{}');
 
-    const sheetTasks = json.tasks.map(t=>({
+    const sheetTasks=json.tasks.map(t=>({
       id:       t.id,
       t:        t.titulo||'(sin título)',
       c:        t.cliente||'General',
       tp:       t.tipo||'seguimiento',
       a:        t.delegado||'—',
+      ae:       t.email||'',
       d:        parseFecha(t.vencimiento),
-      dn:       t.estado==='completado',
+      dn:       t.estado==='completado'||saved[t.threadId]==='completado',
       s:        t.snippet||'',
       ha:       t.enviados>0,
       sent:     t.enviados||0,
       threadId: t.threadId
     }));
 
-    // Preservar estado completado del localStorage
-    sheetTasks.forEach(t=>{
-      if(saved[t.threadId]==='completado') t.dn=true;
-    });
+    tasks=sheetTasks;
+    nextT=tasks.length+1;
+    save();render();renderAlarms();
+    if(typeof donutChart!=='undefined'&&donutChart)initCharts();
 
-    tasks = sheetTasks;
-    nextT = tasks.length+1;
-    save();
-    render();
-    renderAlarms();
-    if(typeof donutChart!=='undefined'&&donutChart) initCharts();
-
-    const activas = tasks.filter(x=>!x.dn).length;
+    const activas=tasks.filter(x=>!x.dn).length;
     document.getElementById('sync-lbl').textContent=`Última sync: ${tn()} · ${json.total} correos · ${activas} activas`;
     toast(`✓ ${activas} tareas cargadas`);
 
   }catch(e){
     toast('Error de conexión: '+e.message);
-    localStorage.removeItem('apps_script_url');
-    APPS_SCRIPT_URL='';
     console.error(e);
   }
   btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';
