@@ -1099,20 +1099,16 @@ function fire(id){
 function tog(id){const al=alarms.find(x=>x.id===id);if(al){al.on=!al.on;save();renderAlarms();toast(al.on?'Alarma activada':'Alarma pausada');}}
 function delAlarm(id){const al=alarms.find(x=>x.id===id);if(!al)return;if(!confirm('¿Eliminar alarma "'+al.t+'"?'))return;alarms=alarms.filter(x=>x.id!==id);save();document.getElementById('pill-a').textContent=alarms.length;renderAlarms();toast('Alarma eliminada');}
 
-// ─────────────────────────────────────────────────────────
-// ID de tu Google Sheet (fuente de verdad)
-// URL del Apps Script publicado como Web App
-// IMPORTANTE: Reemplaza esta URL con la tuya después de publicar el script
-let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || '';
+// URL del Apps Script — pre-cargada para no depender del localStorage
+const APPS_SCRIPT_DEFAULT = 'https://script.google.com/macros/s/AKfycbxoYZwYrZ3htEpvI86yyd1HWBjSGBgBFYU9q6BTo7pZpdOcSwCHR-UY2tgSdxGb98ypRQ/exec';
+let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || APPS_SCRIPT_DEFAULT;
 
 async function doSync(){
   const btn=document.getElementById('sync-btn');
   btn.disabled=true;btn.querySelector('span').textContent='Sincronizando...';
 
   if(!APPS_SCRIPT_URL){
-    const url = prompt('Pega aquí la URL de tu Apps Script publicado:\n(Apps Script → Implementar → Administrar implementaciones → URL)');
-    if(!url){ btn.disabled=false;btn.querySelector('span').textContent='Sincronizar Gmail';return; }
-    APPS_SCRIPT_URL = url.trim();
+    APPS_SCRIPT_URL = APPS_SCRIPT_DEFAULT;
     localStorage.setItem('apps_script_url', APPS_SCRIPT_URL);
   }
 
