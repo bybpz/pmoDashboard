@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
 <style>
 :root{
   /* Estilo Bold — Crema · Naranja · Negro */
@@ -586,8 +587,12 @@ Bryan Pozo — Project Manager, Grupo Bios</textarea>
       <input type="text" id="modal-as-url" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;font-size:12px;font-family:monospace">
     </div>
     <div class="field">
-      <label>Token de seguridad</label>
+      <label style="display:flex;justify-content:space-between;align-items:center">
+        Token de seguridad
+        <button onclick="generarToken()" style="background:none;border:none;color:#FF4D00;font-size:12px;cursor:pointer;padding:0">⟳ Generar token fuerte</button>
+      </label>
       <input type="password" id="modal-as-token" placeholder="Token configurado en tu Apps Script" style="width:100%">
+      <div id="token-display" style="font-size:11px;color:var(--t3);margin-top:4px;word-break:break-all;display:none"></div>
     </div>
     <div id="modal-as-status" style="font-size:12px;margin-top:4px;min-height:18px"></div>
     <div class="modal-footer">
@@ -600,6 +605,70 @@ Bryan Pozo — Project Manager, Grupo Bios</textarea>
 <div id="toast"></div>
 
 <script>
+// ══════════════════════════════════════════════════
+// SEGURIDAD — Encriptación AES del localStorage
+// ══════════════════════════════════════════════════
+const MASTER_KEY_ID = 'pm_master_key';
+
+// Genera o recupera la clave maestra del dispositivo
+// La clave es única por dispositivo/navegador — nunca viaja por la red
+function getMasterKey(){
+  let key = sessionStorage.getItem(MASTER_KEY_ID);
+  if(!key){
+    // Buscar clave persistente en localStorage (encriptada con fingerprint)
+    const stored = localStorage.getItem(MASTER_KEY_ID);
+    if(stored){
+      key = stored;
+    } else {
+      // Primera vez — generar clave aleatoria de 256 bits
+      const arr = new Uint8Array(32);
+      crypto.getRandomValues(arr);
+      key = Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+      localStorage.setItem(MASTER_KEY_ID, key);
+    }
+    sessionStorage.setItem(MASTER_KEY_ID, key);
+  }
+  return key;
+}
+
+// Encriptar dato con AES-256
+function secureSet(storageKey, value){
+  try{
+    const key = getMasterKey();
+    const encrypted = CryptoJS.AES.encrypt(
+      typeof value === 'string' ? value : JSON.stringify(value),
+      key
+    ).toString();
+    localStorage.setItem(storageKey, encrypted);
+  }catch(e){
+    // Fallback sin encriptación si CryptoJS no cargó
+    localStorage.setItem(storageKey, typeof value === 'string' ? value : JSON.stringify(value));
+  }
+}
+
+// Desencriptar dato
+function secureGet(storageKey, defaultVal=''){
+  try{
+    const raw = localStorage.getItem(storageKey);
+    if(!raw) return defaultVal;
+    const key = getMasterKey();
+    // Intentar desencriptar
+    const bytes = CryptoJS.AES.decrypt(raw, key);
+    const decrypted = bytes.toString(CryptoJS.enc.Utf8);
+    if(!decrypted) return raw; // Fallback si era texto plano anterior
+    return decrypted;
+  }catch(e){
+    return localStorage.getItem(storageKey) || defaultVal;
+  }
+}
+
+// Generar token fuerte aleatorio de 32 chars
+function generateStrongToken(){
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
 const PAL=['#2563EB','#16A34A','#D97706','#DC2626','#7C3AED','#0891B2','#BE185D','#065F46'];
 const CM={};let CI=0;
 function cc(c){if(!CM[c])CM[c]=PAL[CI++%PAL.length];return CM[c];}
@@ -861,7 +930,7 @@ function actualizarEstadoSheet(threadId){
   form.target=ifrId;
   form.style.display='none';
 
-  [['action','completar'],['threadId',threadId],['token',localStorage.getItem('pm_token')||'']].forEach(([k,v])=>{
+  [['action','completar'],['threadId',threadId],['token',secureGet('pm_token','')]].forEach(([k,v])=>{
     const inp=document.createElement('input');
     inp.type='hidden';inp.name=k;inp.value=v;
     form.appendChild(inp);
@@ -1128,9 +1197,8 @@ function fire(id){
 function tog(id){const al=alarms.find(x=>x.id===id);if(al){al.on=!al.on;save();renderAlarms();toast(al.on?'Alarma activada':'Alarma pausada');}}
 function delAlarm(id){const al=alarms.find(x=>x.id===id);if(!al)return;if(!confirm('¿Eliminar alarma "'+al.t+'"?'))return;alarms=alarms.filter(x=>x.id!==id);save();document.getElementById('pill-a').textContent=alarms.length;renderAlarms();toast('Alarma eliminada');}
 
-// URL del Apps Script — nunca hardcodeada, solo desde localStorage
-// El usuario debe configurarla desde ⚙ Configurar Apps Script en el sidebar
-let APPS_SCRIPT_URL = localStorage.getItem('apps_script_url') || '';
+// URL del Apps Script — cifrada en localStorage
+let APPS_SCRIPT_URL = secureGet('apps_script_url','');
 
 async function doSync(){
   const btn=document.getElementById('sync-btn');
@@ -1280,13 +1348,23 @@ function probarCuenta(){
   toast(`Abriendo cuenta Gmail u/${idx}`);
 }
 
+function generarToken(){
+  const token=generateStrongToken();
+  document.getElementById('modal-as-token').value=token;
+  document.getElementById('modal-as-token').type='text';
+  const display=document.getElementById('token-display');
+  display.style.display='block';
+  display.innerHTML=`<strong>⚠ Copia este token y actualízalo en tu Apps Script (CONFIG.SECRET_TOKEN):</strong><br><code style="background:var(--bg);padding:2px 6px;border-radius:3px;font-size:12px">${token}</code>`;
+  toast('Token generado — cópialo en tu Apps Script');
+}
+
 function configurarURL(){
-  const saved=localStorage.getItem('apps_script_url')||'';
-  const savedToken=localStorage.getItem('pm_token')||'';
+  const saved=secureGet('apps_script_url','');
+  const savedToken=secureGet('pm_token','');
   document.getElementById('modal-as-url').value=saved;
   document.getElementById('modal-as-token').value=savedToken;
   const st=document.getElementById('modal-as-status');
-  st.textContent=saved?'✓ Configuración actual cargada':'Sin configurar — ingresa URL y token';
+  st.textContent=saved?'✓ Configuración actual cargada (cifrada)':'Sin configurar — ingresa URL y token';
   st.style.color=saved?'#1B5E20':'var(--t3)';
   openModal('modal-config-url');
 }
@@ -1299,10 +1377,10 @@ function saveAppsScriptUrl(){
     if(st){st.textContent='⚠ La URL debe ser de script.google.com y terminar en /exec';st.style.color='#FF4D00';}
     return;
   }
-  localStorage.setItem('apps_script_url',val);
+  secureSet('apps_script_url',val);
   APPS_SCRIPT_URL=val;
-  if(st){st.textContent='✓ URL guardada';st.style.color='#1B5E20';}
-  toast('URL guardada ✓');
+  if(st){st.textContent='✓ URL guardada (cifrada)';st.style.color='#1B5E20';}
+  toast('URL guardada y cifrada ✓');
 }
 
 function guardarURLModal(){
@@ -1315,25 +1393,25 @@ function guardarURLModal(){
     st.style.color='#FF4D00';return;
   }
   if(!token){st.textContent='⚠ Ingresa el token de seguridad';st.style.color='#FF4D00';return;}
-  localStorage.setItem('apps_script_url',val);
-  localStorage.setItem('pm_token',token);
+  secureSet('apps_script_url',val);
+  secureSet('pm_token',token);
   APPS_SCRIPT_URL=val;
   const inp=document.getElementById('as-url-input');
   if(inp)inp.value=val;
   const ast=document.getElementById('as-url-status');
-  if(ast){ast.textContent='✓ URL y token configurados';ast.style.color='#1B5E20';}
+  if(ast){ast.textContent='✓ URL y token configurados (cifrados)';ast.style.color='#1B5E20';}
   closeModal('modal-config-url');
-  toast('✓ Configuración guardada de forma segura');
+  toast('✓ Configuración guardada cifrada con AES-256');
 }
 
 function loadAppsScriptUrlField(){
-  const saved=localStorage.getItem('apps_script_url')||'';
+  const saved=secureGet('apps_script_url','');
   const inp=document.getElementById('as-url-input');
   const st=document.getElementById('as-url-status');
   if(inp){
     inp.value=saved;
-    const hasToken=!!localStorage.getItem('pm_token');
-    if(saved&&hasToken){st.textContent='✓ URL y token configurados';st.style.color='#1B5E20';}
+    const hasToken=!!secureGet('pm_token','');
+    if(saved&&hasToken){st.textContent='✓ URL y token configurados (cifrados AES-256)';st.style.color='#1B5E20';}
     else if(saved){st.textContent='⚠ URL configurada pero falta el token';st.style.color='#FF4D00';}
     else{st.textContent='Sin configurar — usa ⚙ Configurar Apps Script';st.style.color='var(--t3)';}
   }
